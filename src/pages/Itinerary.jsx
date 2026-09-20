@@ -461,8 +461,8 @@ function toGuideItem(item) {
 // produce an itinerary the rest of the app wouldn't also allow.
 function GuideChat({
   city,
-  day,
-  realItems,
+  itineraryRef,
+  dayIndex,
   catalogById,
   usedPlaceIds,
   tryAddPlace,
@@ -480,6 +480,24 @@ function GuideChat({
   // reveal individual places once one is picked, entirely client-side (no
   // extra AI round-trip needed, we already have the full list).
   const [categoryChoice, setCategoryChoice] = useState({});
+  // A multi-step turn (e.g. remove_place then add_place) makes several
+  // chatWithGuide round-trips inside one already-running runTurn() call.
+  // tryAddPlace/tryRemovePlace/tryReorderBefore themselves always read the
+  // true latest state (via itineraryRef, kept synchronously fresh by the
+  // parent's updateDay). But `catalogById`/the try* functions as PROPS are
+  // still only refreshed when the parent re-renders -- reading them through
+  // this ref, resynced every render, avoids acting on the specific prop
+  // values captured back when this turn started.
+  const latestRef = useRef(null);
+  useEffect(() => {
+    latestRef.current = { catalogById, tryAddPlace, tryRemovePlace, tryReorderBefore };
+  });
+
+  function currentDayContext() {
+    const d = itineraryRef.current.days[dayIndex];
+    const realItems = d.items.filter((i) => !CONNECTOR_KINDS.has(i.kind));
+    return { weekday: d.weekday, realItems };
+  }
 
   function handleAddSuggestion(place) {
     const catalogEntry = catalogById[place.id];
@@ -505,18 +523,19 @@ function GuideChat({
   }
 
   function executeTool(name, args) {
+    const current = latestRef.current;
     if (name === "add_place") {
-      const place = catalogById[args.place_id];
+      const place = current.catalogById[args.place_id];
       if (!place) return { error: "That place id doesn't exist in the catalog." };
-      const result = tryAddPlace(place);
+      const result = current.tryAddPlace(place);
       return result.ok ? { result: `Added ${place.name}.` } : { error: result.reason };
     }
     if (name === "remove_place") {
-      const result = tryRemovePlace(args.item_id);
+      const result = current.tryRemovePlace(args.item_id);
       return result.ok ? { result: `Removed ${result.title}.` } : { error: result.reason };
     }
     if (name === "reorder_before") {
-      const result = tryReorderBefore(args.item_id, args.before_item_id);
+      const result = current.tryReorderBefore(args.item_id, args.before_item_id);
       return result.ok ? { result: "Reordered." } : { error: result.reason };
     }
     return { error: `Unknown tool ${name}` };
@@ -527,9 +546,14 @@ function GuideChat({
     try {
       let contentsSoFar = startContents;
       for (let step = 0; step < GUIDE_MAX_STEPS; step++) {
+        // Read fresh from the ref on every iteration -- an earlier step in
+        // this same turn (e.g. a remove_place) may have already changed the
+        // itinerary, and the next step must see that change, not a snapshot
+        // from when this turn started or from the last parent re-render.
+        const { weekday, realItems: currentRealItems } = currentDayContext();
         const res = await chatWithGuide({
           city,
-          day: { weekday: day.weekday, items: realItems.map(toGuideItem) },
+          day: { weekday, items: currentRealItems.map(toGuideItem) },
           contents: contentsSoFar,
         });
         contentsSoFar = res.contents;
@@ -675,6 +699,13 @@ export default function Itinerary() {
   const location = useLocation();
   const navigate = useNavigate();
   const [itinerary, setItinerary] = useState(location.state?.itinerary ?? null);
+  // Mirrors `itinerary` synchronously (updated the instant updateDay runs,
+  // not after React flushes a re-render). The AI guide can make several
+  // add/remove/reorder calls back-to-back within one conversational turn;
+  // reading from this ref instead of the `itinerary` state/`day` closure
+  // means each call sees the true latest state even if the ones before it
+  // haven't been reflected in a re-render yet.
+  const itineraryRef = useRef(itinerary);
   const city = location.state?.city ?? "pondicherry";
   const planRequest = location.state?.planRequest;
   const planId = location.state?.planId ?? null;
@@ -713,6 +744,13 @@ export default function Itinerary() {
     getPlaces(city).then(setPlaces).catch(() => {});
     getFood(city).then(setFood).catch(() => {});
   }, [city]);
+
+  // Safety net for setItinerary calls outside updateDay (initial load,
+  // replan, GPS auto-check-in) -- updateDay itself keeps the ref in sync
+  // synchronously already, this just covers the other paths.
+  useEffect(() => {
+    itineraryRef.current = itinerary;
+  }, [itinerary]);
 
   useEffect(() => {
     if (!message) return;
@@ -794,10 +832,15 @@ export default function Itinerary() {
   );
 
   function updateDay(updater) {
-    setItinerary((prev) => {
-      const days = prev.days.map((d, i) => (i === dayIndex ? updater(d) : d));
-      return { ...prev, days };
-    });
+    // Computed synchronously from the ref, not from setItinerary's async
+    // updater callback -- so itineraryRef.current is authoritative the
+    // instant this returns, before React has necessarily re-rendered.
+    const next = {
+      ...itineraryRef.current,
+      days: itineraryRef.current.days.map((d, i) => (i === dayIndex ? updater(d) : d)),
+    };
+    itineraryRef.current = next;
+    setItinerary(next);
   }
 
   function setItemStatus(itemId, status) {
@@ -810,6 +853,10 @@ export default function Itinerary() {
   // Shared by the "+Add a place" button and the AI guide's add_place tool —
   // both need the same feasibility check and the same mutation.
   function tryAddPlace(place) {
+    // Read from the ref, not the `day` closure -- the AI guide can chain
+    // several add/remove/reorder calls within one turn, and each one must
+    // see the true latest state even if React hasn't re-rendered yet.
+    const currentDay = itineraryRef.current.days[dayIndex];
     // Skipped items stay in the array (faded, not removed) so they can be
     // undone -- anchoring on the literal last array element meant skipping
     // the last stop(s) of the day never actually freed up their time for a
@@ -818,10 +865,10 @@ export default function Itinerary() {
     // "skipped" themselves even when the real stop they lead to is, so one
     // sitting right before a skipped item would still carry that item's
     // stale, late end time and become the (wrong) last "active" element.
-    const activeItems = day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind) && i.status !== "skipped");
+    const activeItems = currentDay.items.filter((i) => !CONNECTOR_KINDS.has(i.kind) && i.status !== "skipped");
     const lastItem = activeItems[activeItems.length - 1];
     const start = lastItem ? timeToMinutes(lastItem.end) : 9 * 60;
-    if (earliestStart(place.windows, place.closed_days, day.weekday, start, place.duration_min) === null) {
+    if (earliestStart(place.windows, place.closed_days, currentDay.weekday, start, place.duration_min) === null) {
       return { ok: false, reason: `${place.name} is closed at this time.` };
     }
     const end = start + place.duration_min;
@@ -854,7 +901,8 @@ export default function Itinerary() {
   // Shared by removing/skipping a stop from the UI and the AI guide's
   // remove_place tool.
   function tryRemovePlace(itemId) {
-    const item = day.items.find((i) => i.id === itemId);
+    const currentDay = itineraryRef.current.days[dayIndex];
+    const item = currentDay.items.find((i) => i.id === itemId);
     if (!item) return { ok: false, reason: "That stop isn't in today's plan." };
     setItemStatus(itemId, "skipped");
     return { ok: true, title: item.title };
@@ -864,10 +912,11 @@ export default function Itinerary() {
   function tryReorderBefore(draggedId, targetId) {
     if (!draggedId || draggedId === targetId) return { ok: false, reason: "Nothing to reorder." };
 
-    const realItems = day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind));
+    const currentDay = itineraryRef.current.days[dayIndex];
+    const realItems = currentDay.items.filter((i) => !CONNECTOR_KINDS.has(i.kind));
     const anchor = timeToMinutes(realItems[0].start);
     const reordered = moveById(realItems, draggedId, targetId);
-    const result = recomputeWithFeasibility(reordered, day.weekday, placesById, foodById, anchor);
+    const result = recomputeWithFeasibility(reordered, currentDay.weekday, placesById, foodById, anchor);
 
     if (!result.ok) return { ok: false, reason: result.reason };
 
@@ -999,8 +1048,8 @@ export default function Itinerary() {
       {canEdit && guideOpen && (
         <GuideChat
           city={city}
-          day={day}
-          realItems={realItems}
+          itineraryRef={itineraryRef}
+          dayIndex={dayIndex}
           catalogById={{ ...placesById, ...foodById }}
           usedPlaceIds={usedPlaceIds}
           tryAddPlace={tryAddPlace}
