@@ -33,6 +33,18 @@ function formatTime12h(hhmm) {
   return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+// "10:00-18:00" -> "10:00 AM–6:00 PM"; multiple windows (e.g. a lunch/dinner
+// split) join with a comma so the user can see exactly when a place is
+// actually open, not just guess from a single "Closed at this time" tag.
+function formatWindows(windows) {
+  return (windows || [])
+    .map((w) => {
+      const [start, end] = w.split("-");
+      return `${formatTime12h(start)}–${formatTime12h(end)}`;
+    })
+    .join(", ");
+}
+
 function timeToMinutes(hhmm) {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
@@ -415,7 +427,7 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
               <div>
                 <strong>{place.name}</strong>
                 <span className="add-place-row__meta">
-                  {place.category} · {place.duration_min} min · ★ {place.rating}
+                  {place.category} · {place.duration_min} min · ★ {place.rating} · {formatWindows(place.windows)}
                   {!feasible && " · Closed at this time"}
                 </span>
               </div>
