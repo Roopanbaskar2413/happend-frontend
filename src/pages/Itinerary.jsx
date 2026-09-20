@@ -447,11 +447,45 @@ function toGuideItem(item) {
 // model picks *what* the user means, but every actual schedule change still
 // goes through the same opening-hours/feasibility checks, so it can't
 // produce an itinerary the rest of the app wouldn't also allow.
-function GuideChat({ city, day, realItems, catalogById, tryAddPlace, tryRemovePlace, tryReorderBefore, onClose }) {
+function GuideChat({
+  city,
+  day,
+  realItems,
+  catalogById,
+  usedPlaceIds,
+  tryAddPlace,
+  tryRemovePlace,
+  tryReorderBefore,
+  onClose,
+}) {
   const [displayMessages, setDisplayMessages] = useState([{ role: "assistant", text: GUIDE_INTRO }]);
   const [contents, setContents] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(null); // the suggestion card currently showing detail + add/no
+
+  function handleAddSuggestion(place) {
+    const catalogEntry = catalogById[place.id];
+    if (!catalogEntry) {
+      setDisplayMessages((m) => [...m, { role: "assistant", text: "That place isn't in the catalog anymore." }]);
+      setExpanded(null);
+      return;
+    }
+    const result = tryAddPlace(catalogEntry);
+    setDisplayMessages((m) => [
+      ...m,
+      {
+        role: "assistant",
+        text: result.ok ? `Added ${place.name}! Anything else you'd like to change?` : result.reason,
+      },
+    ]);
+    setExpanded(null);
+  }
+
+  function handleDeclineSuggestion() {
+    setDisplayMessages((m) => [...m, { role: "assistant", text: "No problem — let me know if you'd like something else." }]);
+    setExpanded(null);
+  }
 
   function executeTool(name, args) {
     if (name === "add_place") {
@@ -493,7 +527,10 @@ function GuideChat({ city, day, realItems, catalogById, tryAddPlace, tryRemovePl
           continue;
         }
 
-        setDisplayMessages((m) => [...m, { role: "assistant", text: res.reply || "" }]);
+        setDisplayMessages((m) => [
+          ...m,
+          { role: "assistant", text: res.reply || "", suggestions: res.suggested_places || null },
+        ]);
         return;
       }
       setDisplayMessages((m) => [
@@ -527,11 +564,48 @@ function GuideChat({ city, day, realItems, catalogById, tryAddPlace, tryRemovePl
         </button>
       </div>
       <div className="guide-chat__messages">
-        {displayMessages.map((m, i) => (
-          <div key={i} className={`guide-chat__bubble guide-chat__bubble--${m.role}`}>
-            {m.text}
-          </div>
-        ))}
+        {displayMessages.map((m, i) => {
+          const visibleSuggestions = (m.suggestions || []).filter((s) => !usedPlaceIds.has(s.id));
+          return (
+            <div key={i}>
+              <div className={`guide-chat__bubble guide-chat__bubble--${m.role}`}>{m.text}</div>
+              {visibleSuggestions.length > 0 && (
+                <div className="guide-suggestions">
+                  {visibleSuggestions.map((s) => (
+                    <div key={s.id} className="guide-suggestion">
+                      <button
+                        type="button"
+                        className="guide-suggestion__chip"
+                        onClick={() => setExpanded((cur) => (cur?.id === s.id ? null : s))}
+                      >
+                        {s.name}
+                        {s.closes_at && ` · until ${formatTime12h(s.closes_at)}`}
+                      </button>
+                      {expanded?.id === s.id && (
+                        <div className="guide-suggestion__detail">
+                          {catalogById[s.id]?.notes && <p>{catalogById[s.id].notes}</p>}
+                          <p className="guide-suggestion__meta">
+                            {s.category} · {s.duration_min} min · ₹{s.cost_pp} · ★ {s.rating}
+                            {s.closes_at && ` · closes ${formatTime12h(s.closes_at)}`}
+                          </p>
+                          <p>Add this to your plan?</p>
+                          <div className="guide-suggestion__actions">
+                            <button type="button" onClick={() => handleAddSuggestion(s)}>
+                              Yes, add it
+                            </button>
+                            <button type="button" onClick={handleDeclineSuggestion}>
+                              No thanks
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
         {busy && (
           <div className="guide-chat__bubble guide-chat__bubble--assistant guide-chat__bubble--typing">…</div>
         )}
@@ -871,6 +945,7 @@ export default function Itinerary() {
           day={day}
           realItems={realItems}
           catalogById={{ ...placesById, ...foodById }}
+          usedPlaceIds={usedPlaceIds}
           tryAddPlace={tryAddPlace}
           tryRemovePlace={tryRemovePlace}
           tryReorderBefore={tryReorderBefore}

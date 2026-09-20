@@ -1795,6 +1795,78 @@ h1, h2, h3 {
   cursor: default;
 }
 
+.guide-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.guide-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-suggestion__chip {
+  padding: 8px 14px;
+  border: 1px solid #c1502e;
+  border-radius: 999px;
+  background: #fff;
+  color: #c1502e;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.guide-suggestion__chip:hover {
+  background: #fbf0ea;
+}
+
+.guide-suggestion__detail {
+  max-width: 85%;
+  background: #fff;
+  border: 1px solid #ece2d6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-suggestion__meta {
+  color: #a99a89;
+  font-size: 0.78rem;
+}
+
+.guide-suggestion__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.guide-suggestion__actions button {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.guide-suggestion__actions button:first-child {
+  border: none;
+  background: #c1502e;
+  color: #fff;
+}
+
+.guide-suggestion__actions button:last-child {
+  border: 1px solid #ece2d6;
+  background: #fff;
+  color: #3a2e26;
+}
+
 /* Trip summary page */
 
 .summary-page {
