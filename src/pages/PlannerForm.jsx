@@ -2,10 +2,26 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getOptions } from "../api/plan.js";
 
+function toLocalIso(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(
+    2,
+    "0"
+  )}`;
+}
+
 function defaultDate(offsetDays) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+  return toLocalIso(d);
+}
+
+function todayLocalIso() {
+  return toLocalIso(new Date());
+}
+
+function nowLocalHHMM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 export default function PlannerForm() {
@@ -39,7 +55,15 @@ export default function PlannerForm() {
   }, []);
 
   function update(field, value) {
-    setForm((f) => ({ ...f, [field]: value }));
+    setForm((f) => {
+      // Starting the trip today means the plan should pick up from right now,
+      // not the generic 10:00 default — otherwise it schedules stops for
+      // hours already gone by.
+      if (field === "arrival_date" && value === todayLocalIso()) {
+        return { ...f, arrival_date: value, arrival_time: nowLocalHHMM() };
+      }
+      return { ...f, [field]: value };
+    });
   }
 
   function toggleInterest(interest) {
