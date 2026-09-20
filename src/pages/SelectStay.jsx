@@ -134,15 +134,27 @@ export default function SelectStay() {
                       : ""}
                   </p>
                   {stay.notes && <p className="summary-card__notes">{stay.notes}</p>}
-                  <button
-                    type="button"
-                    className="stay-card__select-btn"
-                    onClick={() =>
-                      setSelectedStayId((current) => (current === stay.id ? null : stay.id))
-                    }
-                  >
-                    {selectedStayId === stay.id ? "Selected ✓" : "Select"}
-                  </button>
+                  <div className="stay-card__actions">
+                    <button
+                      type="button"
+                      className="stay-card__select-btn"
+                      onClick={() =>
+                        setSelectedStayId((current) => (current === stay.id ? null : stay.id))
+                      }
+                    >
+                      {selectedStayId === stay.id ? "Selected ✓" : "Select"}
+                    </button>
+                    {selectedStayId === stay.id && stay.booking_url && (
+                      <a
+                        href={stay.booking_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="stay-card__book-link"
+                      >
+                        Book this stay ↗
+                      </a>
+                    )}
+                  </div>
                 </div>
               ))}
               {!loading && visibleStays.length === 0 && (

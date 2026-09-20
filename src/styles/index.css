@@ -2248,9 +2248,16 @@ h1, h2, h3 {
   background: #fff8f2;
 }
 
-.stay-card__select-btn {
+.stay-card__actions {
   margin-top: auto;
   padding-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stay-card__select-btn {
   align-self: flex-start;
   padding: 8px 16px;
   border: 1px solid #c1502e;
@@ -2265,6 +2272,13 @@ h1, h2, h3 {
 .stay-card.is-selected .stay-card__select-btn {
   background: #c1502e;
   color: #fff;
+}
+
+.stay-card__book-link {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #c1502e;
+  text-decoration: none;
 }
 
 .stay-select__continue {
