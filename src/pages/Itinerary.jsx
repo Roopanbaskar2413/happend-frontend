@@ -166,6 +166,34 @@ const DAY_SEGMENTS = [
 
 const DURATION_OPTIONS_MIN = [30, 60, 90, 120];
 
+// Bubbles are the primary way to answer "which category/segment/how long",
+// but a user typing the answer instead ("3 hr", "evening") is completely
+// natural and shouldn't silently fall through to the AI as an unrelated
+// chat message. These let handleSend recognize a typed answer to whatever
+// question is currently pending and resolve it exactly like a bubble click,
+// entirely client-side -- no AI round-trip, and typed durations aren't even
+// limited to the 4 preset bubble values.
+function parseCategoryFromText(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes("attraction") || lower.includes("activit")) return "place";
+  if (lower.includes("restaurant") || lower.includes("food") || lower.includes("eat")) return "meal";
+  return null;
+}
+
+function parseSegmentFromText(text, segments) {
+  const lower = text.toLowerCase();
+  return segments.find((seg) => lower.includes(seg.key))?.key ?? null;
+}
+
+function parseDurationFromText(text) {
+  const lower = text.toLowerCase();
+  const hourMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:hrs?|hours?|h)\b/);
+  if (hourMatch) return Math.round(parseFloat(hourMatch[1]) * 60);
+  const minMatch = lower.match(/(\d+)\s*(?:mins?|minutes?|m)\b/);
+  if (minMatch) return parseInt(minMatch[1], 10);
+  return null;
+}
+
 function rangesOverlap(aStart, aEnd, bStart, bEnd) {
   return aStart < bEnd && aEnd > bStart;
 }
@@ -767,11 +795,71 @@ function GuideChat({
     }
   }
 
+  // Finds the most recent assistant message that's still waiting on a
+  // category/segment/duration answer -- NOT just the last message overall.
+  // Each typed answer becomes its own new user message, so after the first
+  // one the original question is no longer displayMessages[length-1]; this
+  // walks backward past those typed replies to find what's actually still
+  // pending, stopping at the first assistant message either way (only the
+  // most recent interactive question should ever still be "listening").
+  function findPendingPrompt() {
+    for (let idx = displayMessages.length - 1; idx >= 0; idx--) {
+      const msg = displayMessages[idx];
+      if (msg.role !== "assistant") continue;
+
+      const visibleSuggestions = (msg.suggestions || []).filter((s) => !usedPlaceIds.has(s.id));
+      const kinds = [...new Set(visibleSuggestions.map((s) => s.kind))];
+      if (kinds.length > 1 && !categoryChoice[idx]) return { idx, type: "category" };
+
+      if (msg.makeRoomPrompt && !msg.makeRoomPrompt.resolved) {
+        const { segments } = msg.makeRoomPrompt;
+        const hasSegment = segmentChoice[idx] ?? (segments.length === 1 ? segments[0].key : null);
+        if (!hasSegment) return { idx, type: "segment", segments };
+        if (!durationChoice[idx]) return { idx, type: "duration" };
+      }
+      return null;
+    }
+    return null;
+  }
+
+  // If there's a pending question, try to resolve it directly from the
+  // typed text before treating this as a fresh message to the AI -- same
+  // outcome as clicking the matching bubble, just without requiring the click.
+  function tryAnswerPendingPrompt(text) {
+    const pending = findPendingPrompt();
+    if (!pending) return false;
+
+    if (pending.type === "category") {
+      const kind = parseCategoryFromText(text);
+      if (kind) {
+        setCategoryChoice((c) => ({ ...c, [pending.idx]: kind }));
+        return true;
+      }
+    } else if (pending.type === "segment") {
+      const seg = parseSegmentFromText(text, pending.segments);
+      if (seg) {
+        setSegmentChoice((c) => ({ ...c, [pending.idx]: seg }));
+        return true;
+      }
+    } else if (pending.type === "duration") {
+      const mins = parseDurationFromText(text);
+      if (mins) {
+        setDurationChoice((c) => ({ ...c, [pending.idx]: mins }));
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   function handleSend() {
     const text = input.trim();
     if (!text || busy) return;
     setInput("");
     setDisplayMessages((m) => [...m, { role: "user", text }]);
+
+    if (tryAnswerPendingPrompt(text)) return;
+
     const nextContents = [...contents, { role: "user", parts: [{ text }] }];
     setContents(nextContents);
     runTurn(nextContents);
