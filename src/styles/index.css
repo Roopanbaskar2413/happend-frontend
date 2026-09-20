@@ -1635,6 +1635,15 @@ h1, h2, h3 {
   cursor: pointer;
 }
 
+.add-place-row--closed {
+  opacity: 0.5;
+}
+
+.add-place-row--closed button {
+  background: #cbbfb0;
+  cursor: not-allowed;
+}
+
 .itin-header__actions {
   margin-left: auto;
   display: flex;

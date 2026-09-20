@@ -361,7 +361,7 @@ function ReflowBar({ realItems, busy, onApply }) {
   );
 }
 
-function AddPlacePanel({ places, usedIds, onAdd, onClose }) {
+function AddPlacePanel({ places, usedIds, weekday, anchorMinutes, onAdd, onClose }) {
   const [query, setQuery] = useState("");
   const available = places.filter((p) => !usedIds.has(p.id));
   const q = query.trim().toLowerCase();
@@ -398,19 +398,25 @@ function AddPlacePanel({ places, usedIds, onAdd, onClose }) {
             {available.length === 0 ? "Nothing left to add." : "No matches."}
           </p>
         )}
-        {filtered.map((place) => (
-          <div key={place.id} className="add-place-row">
-            <div>
-              <strong>{place.name}</strong>
-              <span className="add-place-row__meta">
-                {place.category} · {place.duration_min} min · ★ {place.rating}
-              </span>
+        {filtered.map((place) => {
+          const feasible =
+            earliestStart(place.windows, place.closed_days, weekday, anchorMinutes, place.duration_min) !==
+            null;
+          return (
+            <div key={place.id} className={`add-place-row${feasible ? "" : " add-place-row--closed"}`}>
+              <div>
+                <strong>{place.name}</strong>
+                <span className="add-place-row__meta">
+                  {place.category} · {place.duration_min} min · ★ {place.rating}
+                  {!feasible && " · Closed at this time"}
+                </span>
+              </div>
+              <button type="button" disabled={!feasible} onClick={() => onAdd(place)}>
+                Add
+              </button>
             </div>
-            <button type="button" onClick={() => onAdd(place)}>
-              Add
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -548,6 +554,10 @@ export default function Itinerary() {
   function handleAddPlace(place) {
     const lastItem = day.items[day.items.length - 1];
     const start = lastItem ? timeToMinutes(lastItem.end) : 9 * 60;
+    if (earliestStart(place.windows, place.closed_days, day.weekday, start, place.duration_min) === null) {
+      setMessage(`${place.name} is closed at this time.`);
+      return;
+    }
     const end = start + place.duration_min;
     const newItem = {
       id: `local_${Date.now()}`,
@@ -753,6 +763,10 @@ export default function Itinerary() {
             <AddPlacePanel
               places={places}
               usedIds={usedPlaceIds}
+              weekday={day.weekday}
+              anchorMinutes={
+                day.items.length ? timeToMinutes(day.items[day.items.length - 1].end) : 9 * 60
+              }
               onAdd={handleAddPlace}
               onClose={() => setPickerOpen(false)}
             />
