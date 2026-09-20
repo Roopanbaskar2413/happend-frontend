@@ -362,9 +362,16 @@ function ReflowBar({ realItems, busy, onApply }) {
   );
 }
 
-function AddPlacePanel({ places, usedIds, weekday, anchorMinutes, onAdd, onClose }) {
+function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, onClose }) {
   const [query, setQuery] = useState("");
-  const available = places.filter((p) => !usedIds.has(p.id));
+  // Places and restaurants/bars are both real catalog entries the user can
+  // add — the only real constraint is whether it's actually open at the
+  // time it'd be scheduled, not which catalog list it happens to live in.
+  const catalog = [
+    ...places.map((p) => ({ ...p, kind: "place" })),
+    ...food.map((f) => ({ ...f, kind: "meal", category: f.price_band })),
+  ];
+  const available = catalog.filter((p) => !usedIds.has(p.id));
   const q = query.trim().toLowerCase();
   const filtered = q
     ? available.filter((p) =>
@@ -389,7 +396,7 @@ function AddPlacePanel({ places, usedIds, weekday, anchorMinutes, onAdd, onClose
       <input
         type="text"
         className="add-place-panel__search"
-        placeholder="Search places, categories, areas…"
+        placeholder="Search places, restaurants, categories, areas…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
@@ -576,8 +583,8 @@ export default function Itinerary() {
 
   const day = itinerary?.days?.[dayIndex] ?? null;
   const realItems = day ? day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind)) : [];
-  const placesById = Object.fromEntries(places.map((p) => [p.id, p]));
-  const foodById = Object.fromEntries(food.map((f) => [f.id, f]));
+  const placesById = Object.fromEntries(places.map((p) => [p.id, { ...p, kind: "place" }]));
+  const foodById = Object.fromEntries(food.map((f) => [f.id, { ...f, kind: "meal" }]));
   const now = new Date();
   const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
     now.getDate()
@@ -659,7 +666,9 @@ export default function Itinerary() {
   const realItemIds = realItems.map((i) => i.id);
 
   const usedPlaceIds = new Set(
-    itinerary.days.flatMap((d) => d.items.filter((i) => i.kind === "place").map((i) => i.ref_id))
+    itinerary.days.flatMap((d) =>
+      d.items.filter((i) => i.kind === "place" || i.kind === "meal").map((i) => i.ref_id)
+    )
   );
 
   function updateDay(updater) {
@@ -689,7 +698,7 @@ export default function Itinerary() {
       id: `local_${Date.now()}`,
       start: minutesToTime(start),
       end: minutesToTime(end),
-      kind: "place",
+      kind: place.kind ?? "place",
       ref_id: place.id,
       title: place.name,
       area: place.area,
@@ -929,6 +938,7 @@ export default function Itinerary() {
           (pickerOpen ? (
             <AddPlacePanel
               places={places}
+              food={food}
               usedIds={usedPlaceIds}
               weekday={day.weekday}
               anchorMinutes={
