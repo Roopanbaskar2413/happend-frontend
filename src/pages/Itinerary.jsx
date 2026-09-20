@@ -783,10 +783,14 @@ export default function Itinerary() {
 
   const realItemIds = realItems.map((i) => i.id);
 
+  // Scoped to today only, not the whole multi-day trip -- a place used on
+  // Monday has no reason to block adding it on Sunday too. Skipped items are
+  // excluded as well: removing a stop should free it back up, not keep it
+  // permanently blocked from re-adding.
   const usedPlaceIds = new Set(
-    itinerary.days.flatMap((d) =>
-      d.items.filter((i) => i.kind === "place" || i.kind === "meal").map((i) => i.ref_id)
-    )
+    day.items
+      .filter((i) => (i.kind === "place" || i.kind === "meal") && i.status !== "skipped")
+      .map((i) => i.ref_id)
   );
 
   function updateDay(updater) {
