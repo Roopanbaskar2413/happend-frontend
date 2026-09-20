@@ -49,6 +49,14 @@ export default function App() {
             }
           />
           <Route
+            path="/memories/new/:planId"
+            element={
+              <ProtectedRoute>
+                <MemoryDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/memories/:id"
             element={
               <ProtectedRoute>

@@ -13,7 +13,7 @@ import {
   sharePlan,
   updatePlanStatus,
 } from "../api/savedPlans.js";
-import { createMemory } from "../api/memories.js";
+import { getMemories } from "../api/memories.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 function formatDate(iso) {
@@ -133,13 +133,15 @@ export default function MyTrips() {
   const [openingId, setOpeningId] = useState(null);
   const [actionId, setActionId] = useState(null);
   const [sharingId, setSharingId] = useState(null);
+  const [memoryByPlanId, setMemoryByPlanId] = useState({});
 
   function refresh() {
     setLoading(true);
-    Promise.all([getSavedPlans(), getSharedWithMe()])
-      .then(([owned, shared]) => {
+    Promise.all([getSavedPlans(), getSharedWithMe(), getMemories()])
+      .then(([owned, shared, memories]) => {
         setPlans(owned);
         setSharedPlans(shared);
+        setMemoryByPlanId(Object.fromEntries(memories.map((m) => [m.saved_plan_id, m])));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -189,15 +191,13 @@ export default function MyTrips() {
     }
   }
 
-  async function handleAddMemory(id) {
-    setActionId(id);
-    try {
-      const memory = await createMemory(id);
-      navigate(`/memories/${memory.id}`);
-    } catch (err) {
-      setError(err.message);
-      setActionId(null);
-    }
+  function handleAddMemory(id) {
+    // Nothing is created here — a memory only becomes a real row once the
+    // user actually adds a story/photo/song on the next page. Revisiting a
+    // plan that already has one continues that memory instead of drafting
+    // a new one.
+    const existing = memoryByPlanId[id];
+    navigate(existing ? `/memories/${existing.id}` : `/memories/new/${id}`);
   }
 
   return (
@@ -237,12 +237,8 @@ export default function MyTrips() {
                 Share
               </button>
               {plan.status === "completed" ? (
-                <button
-                  type="button"
-                  onClick={() => handleAddMemory(plan.id)}
-                  disabled={actionId === plan.id}
-                >
-                  {actionId === plan.id ? "Opening…" : "Add memory"}
+                <button type="button" onClick={() => handleAddMemory(plan.id)}>
+                  {memoryByPlanId[plan.id] ? "View memory" : "Add memory"}
                 </button>
               ) : (
                 <button

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   addStory,
+  createMemory,
   deleteMemory,
   deleteMusic,
   deletePhoto,
@@ -13,6 +14,7 @@ import {
   uploadPhoto,
 } from "../api/memories.js";
 import { getSavedPlan } from "../api/savedPlans.js";
+import { computeSummary } from "../utils/memorySummary.js";
 import TripClipPlayer from "../components/memories/TripClipPlayer.jsx";
 
 function StoryRow({ memoryId, story, onChanged }) {
@@ -73,11 +75,15 @@ function StoryRow({ memoryId, story, onChanged }) {
 }
 
 export default function MemoryDetail() {
-  const { id } = useParams();
+  const { id, planId } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const musicInputRef = useRef(null);
+  // In draft mode (route /memories/new/:planId) nothing has been created yet
+  // -- memoryId stays null until the first story/photo/song actually saves.
+  const [memoryId, setMemoryId] = useState(id ?? null);
   const [memory, setMemory] = useState(null);
+  const [savedPlanId, setSavedPlanId] = useState(planId ?? null);
   const [city, setCity] = useState("");
   const [newStory, setNewStory] = useState("");
   const [error, setError] = useState(null);
@@ -87,23 +93,50 @@ export default function MemoryDetail() {
   const [playing, setPlaying] = useState(false);
 
   function refresh() {
-    getMemory(id)
-      .then((m) => {
-        setMemory(m);
-        return getSavedPlan(m.saved_plan_id);
-      })
-      .then((plan) => setCity(plan.city))
-      .catch((err) => setError(err.message));
+    if (memoryId) {
+      getMemory(memoryId)
+        .then((m) => {
+          setMemory(m);
+          setSavedPlanId(m.saved_plan_id);
+          return getSavedPlan(m.saved_plan_id);
+        })
+        .then((plan) => setCity(plan.city))
+        .catch((err) => setError(err.message));
+    } else if (planId) {
+      getSavedPlan(planId)
+        .then((plan) => {
+          setCity(plan.city);
+          setMemory({
+            id: null,
+            saved_plan_id: planId,
+            summary: computeSummary(plan.itinerary),
+            stories: [],
+            photos: [],
+            has_music: false,
+          });
+        })
+        .catch((err) => setError(err.message));
+    }
   }
 
-  useEffect(refresh, [id]);
+  useEffect(refresh, [id, planId]);
+
+  // Creates the real memory row on first use, if it doesn't exist yet.
+  // Idempotent on the backend too, so this is safe even if called twice.
+  async function ensureMemoryExists() {
+    if (memoryId) return memoryId;
+    const created = await createMemory(savedPlanId);
+    setMemoryId(created.id);
+    return created.id;
+  }
 
   async function handleAddStory(e) {
     e.preventDefault();
     if (!newStory.trim()) return;
     setAddingStory(true);
     try {
-      await addStory(id, newStory);
+      const realId = await ensureMemoryExists();
+      await addStory(realId, newStory);
       navigate("/memories");
     } catch (err) {
       setError(err.message);
@@ -117,8 +150,10 @@ export default function MemoryDetail() {
     setUploading(true);
     setError(null);
     try {
-      await uploadPhoto(id, file);
-      refresh();
+      const realId = await ensureMemoryExists();
+      await uploadPhoto(realId, file);
+      if (realId !== id) navigate(`/memories/${realId}`, { replace: true });
+      else refresh();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -129,7 +164,7 @@ export default function MemoryDetail() {
 
   async function handleDeletePhoto(photoId) {
     try {
-      await deletePhoto(id, photoId);
+      await deletePhoto(memoryId, photoId);
       refresh();
     } catch (err) {
       setError(err.message);
@@ -142,8 +177,10 @@ export default function MemoryDetail() {
     setUploadingMusic(true);
     setError(null);
     try {
-      await uploadMusic(id, file);
-      refresh();
+      const realId = await ensureMemoryExists();
+      await uploadMusic(realId, file);
+      if (realId !== id) navigate(`/memories/${realId}`, { replace: true });
+      else refresh();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -154,7 +191,7 @@ export default function MemoryDetail() {
 
   async function handleDeleteMusic() {
     try {
-      await deleteMusic(id);
+      await deleteMusic(memoryId);
       refresh();
     } catch (err) {
       setError(err.message);
@@ -163,7 +200,7 @@ export default function MemoryDetail() {
 
   async function handleDeleteMemory() {
     try {
-      await deleteMemory(id);
+      await deleteMemory(memoryId);
       navigate("/memories");
     } catch (err) {
       setError(err.message);
@@ -197,9 +234,11 @@ export default function MemoryDetail() {
           <span className="nav__logo-end">END</span>
         </Link>
         <h1>Trip memory</h1>
-        <button type="button" className="itin-header__summary-btn" onClick={handleDeleteMemory}>
-          Delete memory
-        </button>
+        {memoryId && (
+          <button type="button" className="itin-header__summary-btn" onClick={handleDeleteMemory}>
+            Delete memory
+          </button>
+        )}
       </header>
 
       {error && <p className="error">{error}</p>}
@@ -252,7 +291,7 @@ export default function MemoryDetail() {
       <div className="memory-photos">
         {memory.photos.map((photo) => (
           <div key={photo.id} className="memory-photo">
-            <img src={photoUrl(id, photo.id)} alt={photo.original_filename} />
+            <img src={photoUrl(memoryId, photo.id)} alt={photo.original_filename} />
             <button type="button" onClick={() => handleDeletePhoto(photo.id)} aria-label="Delete photo">
               ×
             </button>
@@ -290,7 +329,7 @@ export default function MemoryDetail() {
       <div className="story-list">
         {memory.stories.length === 0 && <p className="itin-empty-day">No stories yet.</p>}
         {memory.stories.map((story) => (
-          <StoryRow key={story.id} memoryId={id} story={story} onChanged={refresh} />
+          <StoryRow key={story.id} memoryId={memoryId} story={story} onChanged={refresh} />
         ))}
       </div>
     </div>
