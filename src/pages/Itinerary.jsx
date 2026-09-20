@@ -426,6 +426,10 @@ function AddPlacePanel({ places, usedIds, weekday, anchorMinutes, onAdd, onClose
 const GUIDE_INTRO =
   "Hi! Tell me what you'd like to change — add a place, remove a stop, or move something earlier.";
 const GUIDE_MAX_STEPS = 4;
+// A network hiccup or backend issue should never surface as raw error text —
+// the guide always answers in character, same principle as the backend's
+// own fallback-to-friendly-reply behavior when Gemini itself is unavailable.
+const GUIDE_TROUBLE_REPLY = "I'm having a little trouble right now — mind trying that again in a moment?";
 
 function toGuideItem(item) {
   return { id: item.id, title: item.title, kind: item.kind, status: item.status, start: item.start, end: item.end };
@@ -441,7 +445,6 @@ function GuideChat({ city, day, realItems, catalogById, tryAddPlace, tryRemovePl
   const [contents, setContents] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
 
   function executeTool(name, args) {
     if (name === "add_place") {
@@ -463,7 +466,6 @@ function GuideChat({ city, day, realItems, catalogById, tryAddPlace, tryRemovePl
 
   async function runTurn(startContents) {
     setBusy(true);
-    setError(null);
     try {
       let contentsSoFar = startContents;
       for (let step = 0; step < GUIDE_MAX_STEPS; step++) {
@@ -487,9 +489,13 @@ function GuideChat({ city, day, realItems, catalogById, tryAddPlace, tryRemovePl
         setDisplayMessages((m) => [...m, { role: "assistant", text: res.reply || "" }]);
         return;
       }
-      setError("The guide is taking too many steps — try rephrasing.");
+      setDisplayMessages((m) => [
+        ...m,
+        { role: "assistant", text: "That's a lot of steps for one request — could you break it into smaller asks?" },
+      ]);
     } catch (err) {
-      setError(err.message);
+      console.error("guide chat failed:", err);
+      setDisplayMessages((m) => [...m, { role: "assistant", text: GUIDE_TROUBLE_REPLY }]);
     } finally {
       setBusy(false);
     }
@@ -523,7 +529,6 @@ function GuideChat({ city, day, realItems, catalogById, tryAddPlace, tryRemovePl
           <div className="guide-chat__bubble guide-chat__bubble--assistant guide-chat__bubble--typing">…</div>
         )}
       </div>
-      {error && <p className="error">{error}</p>}
       <div className="guide-chat__input-row">
         <input
           type="text"
