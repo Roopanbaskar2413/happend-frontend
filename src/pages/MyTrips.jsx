@@ -131,6 +131,7 @@ export default function MyTrips() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openingId, setOpeningId] = useState(null);
+  const [actionId, setActionId] = useState(null);
   const [sharingId, setSharingId] = useState(null);
 
   function refresh() {
@@ -177,20 +178,25 @@ export default function MyTrips() {
   }
 
   async function handleMarkCompleted(id) {
+    setActionId(id);
     try {
       await updatePlanStatus(id, "completed");
       refresh();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setActionId(null);
     }
   }
 
   async function handleAddMemory(id) {
+    setActionId(id);
     try {
       const memory = await createMemory(id);
       navigate(`/memories/${memory.id}`);
     } catch (err) {
       setError(err.message);
+      setActionId(null);
     }
   }
 
@@ -231,12 +237,20 @@ export default function MyTrips() {
                 Share
               </button>
               {plan.status === "completed" ? (
-                <button type="button" onClick={() => handleAddMemory(plan.id)}>
-                  Add memory
+                <button
+                  type="button"
+                  onClick={() => handleAddMemory(plan.id)}
+                  disabled={actionId === plan.id}
+                >
+                  {actionId === plan.id ? "Opening…" : "Add memory"}
                 </button>
               ) : (
-                <button type="button" onClick={() => handleMarkCompleted(plan.id)}>
-                  Mark as completed
+                <button
+                  type="button"
+                  onClick={() => handleMarkCompleted(plan.id)}
+                  disabled={actionId === plan.id}
+                >
+                  {actionId === plan.id ? "Saving…" : "Mark as completed"}
                 </button>
               )}
               <a

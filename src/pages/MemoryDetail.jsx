@@ -83,6 +83,7 @@ export default function MemoryDetail() {
   const [error, setError] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadingMusic, setUploadingMusic] = useState(false);
+  const [addingStory, setAddingStory] = useState(false);
   const [playing, setPlaying] = useState(false);
 
   function refresh() {
@@ -100,12 +101,15 @@ export default function MemoryDetail() {
   async function handleAddStory(e) {
     e.preventDefault();
     if (!newStory.trim()) return;
+    setAddingStory(true);
     try {
       await addStory(id, newStory);
       setNewStory("");
       refresh();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setAddingStory(false);
     }
   }
 
@@ -280,8 +284,8 @@ export default function MemoryDetail() {
             placeholder="The sunrise at Promenade Beach was unreal…"
           />
         </label>
-        <button type="submit" className="planner-submit">
-          Add story
+        <button type="submit" className="planner-submit" disabled={addingStory}>
+          {addingStory ? "Adding…" : "Add story"}
         </button>
       </form>
 
