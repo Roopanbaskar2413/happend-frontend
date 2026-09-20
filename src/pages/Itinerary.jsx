@@ -463,6 +463,11 @@ function GuideChat({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(null); // the suggestion card currently showing detail + add/no
+  // Which category (place/meal) has been picked per message index -- when a
+  // message's suggestions span both, show category chips first and only
+  // reveal individual places once one is picked, entirely client-side (no
+  // extra AI round-trip needed, we already have the full list).
+  const [categoryChoice, setCategoryChoice] = useState({});
 
   function handleAddSuggestion(place) {
     const catalogEntry = catalogById[place.id];
@@ -566,12 +571,39 @@ function GuideChat({
       <div className="guide-chat__messages">
         {displayMessages.map((m, i) => {
           const visibleSuggestions = (m.suggestions || []).filter((s) => !usedPlaceIds.has(s.id));
+          const kinds = [...new Set(visibleSuggestions.map((s) => s.kind))];
+          const chosenKind = categoryChoice[i];
+          // When a message's suggestions span both attractions and
+          // restaurants, ask which category first instead of dumping every
+          // chip at once -- resolved entirely client-side from data already
+          // in hand, no extra AI call needed.
+          const showCategoryPicker = kinds.length > 1 && !chosenKind;
+          const placesToShow = showCategoryPicker
+            ? []
+            : visibleSuggestions.filter((s) => !chosenKind || s.kind === chosenKind);
           return (
             <div key={i}>
               <div className={`guide-chat__bubble guide-chat__bubble--${m.role}`}>{m.text}</div>
-              {visibleSuggestions.length > 0 && (
+              {showCategoryPicker && (
                 <div className="guide-suggestions">
-                  {visibleSuggestions.map((s) => (
+                  {kinds.map((k) => {
+                    const count = visibleSuggestions.filter((s) => s.kind === k).length;
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        className="guide-suggestion__chip"
+                        onClick={() => setCategoryChoice((c) => ({ ...c, [i]: k }))}
+                      >
+                        {k === "place" ? "Attractions/activities" : "Restaurants/bars"} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {placesToShow.length > 0 && (
+                <div className="guide-suggestions">
+                  {placesToShow.map((s) => (
                     <div key={s.id} className="guide-suggestion">
                       <button
                         type="button"
