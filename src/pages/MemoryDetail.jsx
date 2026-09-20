@@ -104,11 +104,9 @@ export default function MemoryDetail() {
     setAddingStory(true);
     try {
       await addStory(id, newStory);
-      setNewStory("");
-      refresh();
+      navigate("/memories");
     } catch (err) {
       setError(err.message);
-    } finally {
       setAddingStory(false);
     }
   }
