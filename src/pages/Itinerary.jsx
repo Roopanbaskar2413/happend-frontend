@@ -794,7 +794,16 @@ export default function Itinerary() {
   // Shared by the "+Add a place" button and the AI guide's add_place tool —
   // both need the same feasibility check and the same mutation.
   function tryAddPlace(place) {
-    const lastItem = day.items[day.items.length - 1];
+    // Skipped items stay in the array (faded, not removed) so they can be
+    // undone -- anchoring on the literal last array element meant skipping
+    // the last stop(s) of the day never actually freed up their time for a
+    // new add, since a skipped item's end time was still used as the anchor.
+    // Travel connectors also need excluding here: they never get marked
+    // "skipped" themselves even when the real stop they lead to is, so one
+    // sitting right before a skipped item would still carry that item's
+    // stale, late end time and become the (wrong) last "active" element.
+    const activeItems = day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind) && i.status !== "skipped");
+    const lastItem = activeItems[activeItems.length - 1];
     const start = lastItem ? timeToMinutes(lastItem.end) : 9 * 60;
     if (earliestStart(place.windows, place.closed_days, day.weekday, start, place.duration_min) === null) {
       return { ok: false, reason: `${place.name} is closed at this time.` };
@@ -1048,9 +1057,10 @@ export default function Itinerary() {
               food={food}
               usedIds={usedPlaceIds}
               weekday={day.weekday}
-              anchorMinutes={
-                day.items.length ? timeToMinutes(day.items[day.items.length - 1].end) : 9 * 60
-              }
+              anchorMinutes={(() => {
+                const activeItems = day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind) && i.status !== "skipped");
+                return activeItems.length ? timeToMinutes(activeItems[activeItems.length - 1].end) : 9 * 60;
+              })()}
               onAdd={handleAddPlace}
               onClose={() => setPickerOpen(false)}
             />
