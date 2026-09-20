@@ -52,6 +52,9 @@ export default function Login() {
         <p className="planner-form-sub">
           No account yet? <Link to="/signup">Sign up</Link>
         </p>
+        <p className="planner-form-sub">
+          <Link to="/forgot-password">Forgot password?</Link>
+        </p>
       </div>
     </div>
   );

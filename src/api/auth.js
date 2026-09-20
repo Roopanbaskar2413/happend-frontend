@@ -38,3 +38,37 @@ export async function getMe() {
   if (res.status === 401) return null;
   return handle(res);
 }
+
+export function verifyEmail(token) {
+  return fetch(`${BASE_URL}/auth/verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ token }),
+  }).then(handle);
+}
+
+export function resendVerification() {
+  return fetch(`${BASE_URL}/auth/resend-verification`, {
+    method: "POST",
+    credentials: "include",
+  }).then(handle);
+}
+
+export function forgotPassword(email) {
+  return fetch(`${BASE_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  }).then(handle);
+}
+
+export function resetPassword(token, newPassword) {
+  return fetch(`${BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ token, new_password: newPassword }),
+  }).then(handle);
+}

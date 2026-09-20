@@ -31,8 +31,16 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  async function doVerifyEmail(token) {
+    const u = await authApi.verifyEmail(token);
+    setUser(u);
+    return u;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, signup: doSignup, login: doLogin, logout: doLogout }}>
+    <AuthContext.Provider
+      value={{ user, loading, signup: doSignup, login: doLogin, logout: doLogout, verifyEmail: doVerifyEmail }}
+    >
       {children}
     </AuthContext.Provider>
   );
