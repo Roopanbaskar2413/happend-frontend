@@ -134,6 +134,139 @@ function moveById(list, draggedId, targetId) {
   return copy;
 }
 
+// When a place doesn't fit because the day is full (not because it's
+// genuinely closed), find the minimum trailing stops that would need to be
+// removed to free up enough time -- since a new place always gets appended
+// at the end, only removing the LAST N active stops actually shifts the
+// anchor earlier; skipping one earlier in the day without also skipping
+// everything after it wouldn't free up trailing time at all. Returns null
+// if the place can't fit even with the whole day cleared (genuinely no
+// window works, e.g. wrong weekday or a window shorter than its duration).
+function computeReleasePlan(dayItems, weekday, place) {
+  const activeItems = dayItems.filter((i) => !CONNECTOR_KINDS.has(i.kind) && i.status !== "skipped");
+  for (let n = 1; n <= activeItems.length; n++) {
+    const remaining = activeItems.slice(0, activeItems.length - n);
+    const lastItem = remaining[remaining.length - 1];
+    const anchor = lastItem ? timeToMinutes(lastItem.end) : 9 * 60;
+    if (earliestStart(place.windows, place.closed_days, weekday, anchor, place.duration_min) !== null) {
+      return { candidates: activeItems.slice(activeItems.length - n), minCount: n };
+    }
+  }
+  return null;
+}
+
+// Coarse buckets for "when in the day" the AI guide asks about, before
+// asking how long, before figuring out what to clear -- matches how a
+// person actually thinks about a day, not raw minute ranges.
+const DAY_SEGMENTS = [
+  { key: "morning", label: "Morning", range: [360, 720] }, // 06:00-12:00
+  { key: "afternoon", label: "Afternoon", range: [720, 1020] }, // 12:00-17:00
+  { key: "evening", label: "Evening", range: [1020, 1380] }, // 17:00-23:00
+];
+
+const DURATION_OPTIONS_MIN = [30, 60, 90, 120];
+
+function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+  return aStart < bEnd && aEnd > bStart;
+}
+
+// Which of the 3 day segments this place could actually be visited during,
+// given its real opening windows and closed_days -- only offer segments
+// that are genuinely possible, never all three by default.
+function segmentsForPlace(place, weekday) {
+  if (place.closed_days.includes(weekday)) return [];
+  return DAY_SEGMENTS.filter((seg) =>
+    place.windows.some((w) => {
+      const [s, e] = w.split("-").map(timeToMinutes);
+      return rangesOverlap(s, e, seg.range[0], seg.range[1]);
+    })
+  );
+}
+
+// Finds the smallest contiguous run of existing stops within `segmentRange`
+// that, if removed, frees enough contiguous time for a `duration`-minute
+// visit to `place` that also genuinely fits its real opening hours. Tries
+// runs shortest-first so the suggestion never asks to remove more than
+// necessary. Returns null if nothing in this segment would ever work (even
+// clearing the whole segment isn't enough, or the place doesn't open in
+// time within it).
+function computeSegmentRemovalPlan(dayItems, weekday, place, segmentRange, duration) {
+  const realItems = dayItems.filter((i) => !CONNECTOR_KINDS.has(i.kind) && i.status !== "skipped");
+  const segIndices = realItems
+    .map((it, idx) => ({ it, idx }))
+    .filter(({ it }) => rangesOverlap(timeToMinutes(it.start), timeToMinutes(it.end), segmentRange[0], segmentRange[1]))
+    .map(({ idx }) => idx);
+
+  for (let runLen = 1; runLen <= segIndices.length; runLen++) {
+    for (let i = 0; i + runLen <= segIndices.length; i++) {
+      const runIdxs = segIndices.slice(i, i + runLen);
+      const first = realItems[runIdxs[0]];
+      const last = realItems[runIdxs[runIdxs.length - 1]];
+      const freedStart = Math.max(timeToMinutes(first.start), segmentRange[0]);
+      const freedEnd = Math.min(timeToMinutes(last.end), segmentRange[1]);
+      if (freedEnd - freedStart < duration) continue;
+      const start = earliestStart(place.windows, place.closed_days, weekday, freedStart, duration);
+      if (start !== null && start + duration <= freedEnd) {
+        return { candidates: runIdxs.map((idx) => realItems[idx]), newStart: start, newEnd: start + duration };
+      }
+    }
+  }
+  return null;
+}
+
+// Removes the candidate stops, inserts the new place in their place, and
+// shifts everything after it earlier by however much time was left over --
+// a real (if local) re-flow, not just an append. Travel connectors are
+// dropped throughout, same trade-off drag-reorder already makes: they no
+// longer describe the new adjacency and aren't recalculated here.
+function buildInsertedDayItems(dayItems, candidates, place, newStart, newEnd) {
+  const candidateIds = new Set(candidates.map((c) => c.id));
+  const removedEnd = timeToMinutes(candidates[candidates.length - 1].end);
+  const delta = newEnd - removedEnd;
+  const newItem = {
+    id: `local_${Date.now()}`,
+    start: minutesToTime(newStart),
+    end: minutesToTime(newEnd),
+    kind: place.kind ?? "place",
+    ref_id: place.id,
+    title: place.name,
+    area: place.area,
+    cost_pp: place.cost_pp,
+    notes: place.notes,
+    booking_url: place.booking_url,
+    map_url: `https://www.google.com/maps?q=${place.lat},${place.lng}`,
+    locked: false,
+    status: "planned",
+    warning: null,
+  };
+
+  const realItems = dayItems.filter((i) => !CONNECTOR_KINDS.has(i.kind));
+  const result = [];
+  let inserted = false;
+  let pastRemoval = false;
+  for (const item of realItems) {
+    if (candidateIds.has(item.id)) {
+      if (!inserted) {
+        result.push(newItem);
+        inserted = true;
+      }
+      pastRemoval = true;
+      continue;
+    }
+    if (pastRemoval && delta !== 0) {
+      result.push({
+        ...item,
+        start: minutesToTime(timeToMinutes(item.start) + delta),
+        end: minutesToTime(timeToMinutes(item.end) + delta),
+      });
+    } else {
+      result.push(item);
+    }
+  }
+  if (!inserted) result.push(newItem);
+  return result;
+}
+
 function ItemCard({ item, editable, onSkip, onUndo, onAddPhoto, photoBusy }) {
   const isSkipped = item.status === "skipped";
   const fileInputRef = useRef(null);
@@ -428,10 +561,10 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
                 <strong>{place.name}</strong>
                 <span className="add-place-row__meta">
                   {place.category} · {place.duration_min} min · ★ {place.rating} · {formatWindows(place.windows)}
-                  {!feasible && " · Closed at this time"}
+                  {!feasible && " · Doesn't fit right now — tap Add to see how to make room"}
                 </span>
               </div>
-              <button type="button" disabled={!feasible} onClick={() => onAdd(place)}>
+              <button type="button" onClick={() => onAdd(place)}>
                 Add
               </button>
             </div>
@@ -468,6 +601,7 @@ function GuideChat({
   tryAddPlace,
   tryRemovePlace,
   tryReorderBefore,
+  tryInsertPlace,
   onClose,
 }) {
   const [displayMessages, setDisplayMessages] = useState([{ role: "assistant", text: GUIDE_INTRO }]);
@@ -480,6 +614,11 @@ function GuideChat({
   // reveal individual places once one is picked, entirely client-side (no
   // extra AI round-trip needed, we already have the full list).
   const [categoryChoice, setCategoryChoice] = useState({});
+  // Per-message state for the "when + how long + what to clear" flow that
+  // kicks in when a place doesn't fit as-is: which segment (morning/
+  // afternoon/evening) and duration the user picked, keyed by message index.
+  const [segmentChoice, setSegmentChoice] = useState({});
+  const [durationChoice, setDurationChoice] = useState({});
   // A multi-step turn (e.g. remove_place then add_place) makes several
   // chatWithGuide round-trips inside one already-running runTurn() call.
   // tryAddPlace/tryRemovePlace/tryReorderBefore themselves always read the
@@ -490,7 +629,7 @@ function GuideChat({
   // values captured back when this turn started.
   const latestRef = useRef(null);
   useEffect(() => {
-    latestRef.current = { catalogById, tryAddPlace, tryRemovePlace, tryReorderBefore };
+    latestRef.current = { catalogById, tryAddPlace, tryRemovePlace, tryReorderBefore, tryInsertPlace };
   });
 
   function currentDayContext() {
@@ -522,13 +661,47 @@ function GuideChat({
     setExpanded(null);
   }
 
-  function executeTool(name, args) {
+  function markMakeRoomResolved(messageIndex) {
+    setDisplayMessages((m) =>
+      m.map((msg, i) => (i === messageIndex ? { ...msg, makeRoomPrompt: { ...msg.makeRoomPrompt, resolved: true } } : msg))
+    );
+  }
+
+  function handleConfirmMakeRoom(messageIndex, place, plan) {
+    const current = latestRef.current;
+    const result = current.tryInsertPlace(place, plan.candidates, plan.newStart, plan.newEnd);
+    markMakeRoomResolved(messageIndex);
+    setDisplayMessages((m) => [
+      ...m,
+      {
+        role: "assistant",
+        text: result.ok
+          ? `Added ${place.name} from ${formatTime12h(minutesToTime(plan.newStart))} to ${formatTime12h(minutesToTime(plan.newEnd))}! Anything else?`
+          : "Something went wrong fitting that in — want to try again?",
+      },
+    ]);
+  }
+
+  function executeTool(name, args, onNeedsMakeRoom) {
     const current = latestRef.current;
     if (name === "add_place") {
       const place = current.catalogById[args.place_id];
       if (!place) return { error: "That place id doesn't exist in the catalog." };
       const result = current.tryAddPlace(place);
-      return result.ok ? { result: `Added ${place.name}.` } : { error: result.reason };
+      if (result.ok) return { result: `Added ${place.name}.` };
+      // Doesn't fit as-is -- kick off the "when + how long + what to
+      // clear" flow instead of just failing outright, but only if the
+      // place is actually possible during some segment of the day; if not,
+      // the plain reason is the honest, complete answer.
+      const { weekday } = currentDayContext();
+      const segments = segmentsForPlace(place, weekday);
+      if (segments.length > 0) {
+        onNeedsMakeRoom({ place, segments });
+        return {
+          error: `${result.reason} The app is already asking the user when they'd like to visit and for how long, to figure out what to clear -- don't ask this yourself or guess a time/duration, just briefly acknowledge and wait for their choice.`,
+        };
+      }
+      return { error: result.reason };
     }
     if (name === "remove_place") {
       const result = current.tryRemovePlace(args.item_id);
@@ -543,6 +716,7 @@ function GuideChat({
 
   async function runTurn(startContents) {
     setBusy(true);
+    let pendingMakeRoom = null;
     try {
       let contentsSoFar = startContents;
       for (let step = 0; step < GUIDE_MAX_STEPS; step++) {
@@ -560,7 +734,9 @@ function GuideChat({
         setContents(contentsSoFar);
 
         if (res.tool_call) {
-          const toolResult = executeTool(res.tool_call.name, res.tool_call.args);
+          const toolResult = executeTool(res.tool_call.name, res.tool_call.args, (mr) => {
+            pendingMakeRoom = mr;
+          });
           contentsSoFar = [
             ...contentsSoFar,
             { role: "user", parts: [{ function_response: { name: res.tool_call.name, response: toolResult } }] },
@@ -570,7 +746,12 @@ function GuideChat({
 
         setDisplayMessages((m) => [
           ...m,
-          { role: "assistant", text: res.reply || "", suggestions: res.suggested_places || null },
+          {
+            role: "assistant",
+            text: res.reply || "",
+            suggestions: res.suggested_places || null,
+            makeRoomPrompt: pendingMakeRoom,
+          },
         ]);
         return;
       }
@@ -671,6 +852,109 @@ function GuideChat({
                   ))}
                 </div>
               )}
+              {m.makeRoomPrompt &&
+                !m.makeRoomPrompt.resolved &&
+                (() => {
+                  const { place, segments } = m.makeRoomPrompt;
+                  const chosenSegmentKey = segmentChoice[i] ?? (segments.length === 1 ? segments[0].key : null);
+                  const chosenSegment = DAY_SEGMENTS.find((s) => s.key === chosenSegmentKey);
+                  const chosenDuration = durationChoice[i];
+                  const weekday = itineraryRef.current.days[dayIndex].weekday;
+
+                  if (!chosenSegment) {
+                    return (
+                      <div className="guide-chat__bubble guide-chat__bubble--assistant">
+                        <p>
+                          When would you like to visit <strong>{place.name}</strong>? (open {formatWindows(place.windows)})
+                        </p>
+                        <div className="guide-suggestions">
+                          {segments.map((seg) => (
+                            <button
+                              key={seg.key}
+                              type="button"
+                              className="guide-suggestion__chip"
+                              onClick={() => setSegmentChoice((c) => ({ ...c, [i]: seg.key }))}
+                            >
+                              {seg.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (!chosenDuration) {
+                    return (
+                      <div className="guide-chat__bubble guide-chat__bubble--assistant">
+                        <p>How long would you like to spend there?</p>
+                        <div className="guide-suggestions">
+                          {DURATION_OPTIONS_MIN.map((mins) => (
+                            <button
+                              key={mins}
+                              type="button"
+                              className="guide-suggestion__chip"
+                              onClick={() => setDurationChoice((c) => ({ ...c, [i]: mins }))}
+                            >
+                              {mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(mins % 60 === 0 ? 0 : 1)} hr`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const plan = computeSegmentRemovalPlan(
+                    itineraryRef.current.days[dayIndex].items,
+                    weekday,
+                    place,
+                    chosenSegment.range,
+                    chosenDuration
+                  );
+
+                  if (!plan) {
+                    return (
+                      <div className="guide-chat__bubble guide-chat__bubble--assistant">
+                        <p>
+                          Even clearing all of {chosenSegment.label.toLowerCase()}, there isn't enough time for a{" "}
+                          {chosenDuration}-min visit. Try a different time or a shorter visit?
+                        </p>
+                        <div className="guide-suggestions">
+                          <button
+                            type="button"
+                            className="guide-suggestion__chip"
+                            onClick={() => {
+                              setSegmentChoice((c) => ({ ...c, [i]: null }));
+                              setDurationChoice((c) => ({ ...c, [i]: null }));
+                            }}
+                          >
+                            Choose again
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="guide-chat__bubble guide-chat__bubble--assistant release-prompt">
+                      <p>
+                        Remove {plan.candidates.length === 1 ? "this stop" : `these ${plan.candidates.length} stops`}{" "}
+                        to fit {place.name} ({chosenDuration} min) in the {chosenSegment.label.toLowerCase()}:
+                      </p>
+                      <div className="release-prompt__candidates">
+                        {plan.candidates.map((c) => (
+                          <span key={c.id} className="release-prompt__chip">
+                            {c.title} ({formatTime12h(c.start)}–{formatTime12h(c.end)})
+                          </span>
+                        ))}
+                      </div>
+                      <div className="release-prompt__actions">
+                        <button type="button" onClick={() => handleConfirmMakeRoom(i, place, plan)}>
+                          Remove &amp; add {place.name}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
             </div>
           );
         })}
@@ -715,6 +999,9 @@ export default function Itinerary() {
   const [places, setPlaces] = useState([]);
   const [food, setFood] = useState([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // When a place doesn't fit as-is: { place, releasePlan } for the "remove
+  // these N stops to make room" resolver, shown instead of just failing.
+  const [releasePrompt, setReleasePrompt] = useState(null);
   const [message, setMessage] = useState(null);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
   const [changeLog, setChangeLog] = useState(null);
@@ -869,7 +1156,18 @@ export default function Itinerary() {
     const lastItem = activeItems[activeItems.length - 1];
     const start = lastItem ? timeToMinutes(lastItem.end) : 9 * 60;
     if (earliestStart(place.windows, place.closed_days, currentDay.weekday, start, place.duration_min) === null) {
-      return { ok: false, reason: `${place.name} is closed at this time.` };
+      // "Closed at this time" reads as if the place itself has odd hours --
+      // usually it's just that today's schedule has no free slot left, which
+      // is a very different (and fixable) problem. computeReleasePlan finds
+      // exactly which trailing stops would need to go to make room.
+      const releasePlan = computeReleasePlan(currentDay.items, currentDay.weekday, place);
+      return {
+        ok: false,
+        reason: releasePlan
+          ? `${place.name} doesn't fit in today's schedule right now.`
+          : `${place.name} doesn't fit today's schedule, even if every other stop were removed — check its real hours.`,
+        releasePlan,
+      };
     }
     const end = start + place.duration_min;
     const newItem = {
@@ -894,8 +1192,21 @@ export default function Itinerary() {
 
   function handleAddPlace(place) {
     const result = tryAddPlace(place);
-    if (!result.ok) setMessage(result.reason);
+    if (!result.ok) {
+      setMessage(result.reason);
+      if (result.releasePlan) setReleasePrompt({ place, releasePlan: result.releasePlan });
+    }
     setPickerOpen(false);
+  }
+
+  function confirmReleaseAndAdd() {
+    const { place, releasePlan } = releasePrompt;
+    for (const candidate of releasePlan.candidates) {
+      tryRemovePlace(candidate.id);
+    }
+    const result = tryAddPlace(place);
+    setMessage(result.ok ? `Added ${place.name}!` : result.reason);
+    setReleasePrompt(null);
   }
 
   // Shared by removing/skipping a stop from the UI and the AI guide's
@@ -924,6 +1235,16 @@ export default function Itinerary() {
     // no longer describe the new adjacency, so they're dropped (same trade-off
     // "Add a place" already makes: no travel-time recalculation without re-flow).
     updateDay((d) => ({ ...d, items: result.items }));
+    return { ok: true };
+  }
+
+  // Used by the AI guide's segment/duration "make room" flow: replaces the
+  // chosen candidates with the new place at the computed time, shifting
+  // whatever follows earlier by the leftover gap.
+  function tryInsertPlace(place, candidates, newStart, newEnd) {
+    const currentDay = itineraryRef.current.days[dayIndex];
+    const newItems = buildInsertedDayItems(currentDay.items, candidates, place, newStart, newEnd);
+    updateDay((d) => ({ ...d, items: newItems }));
     return { ok: true };
   }
 
@@ -1055,6 +1376,7 @@ export default function Itinerary() {
           tryAddPlace={tryAddPlace}
           tryRemovePlace={tryRemovePlace}
           tryReorderBefore={tryReorderBefore}
+          tryInsertPlace={tryInsertPlace}
           onClose={() => setGuideOpen(false)}
         />
       )}
@@ -1134,6 +1456,30 @@ export default function Itinerary() {
               + Add a place
             </button>
           ))}
+
+        {canEdit && releasePrompt && (
+          <div className="release-prompt">
+            <p>
+              <strong>{releasePrompt.place.name}</strong> needs {releasePrompt.place.duration_min} min and doesn't fit
+              as-is. Remove {releasePrompt.releasePlan.minCount === 1 ? "this stop" : `these ${releasePrompt.releasePlan.minCount} stops`} to make room:
+            </p>
+            <div className="release-prompt__candidates">
+              {releasePrompt.releasePlan.candidates.map((c) => (
+                <span key={c.id} className="release-prompt__chip">
+                  {c.title} ({formatTime12h(c.start)}–{formatTime12h(c.end)})
+                </span>
+              ))}
+            </div>
+            <div className="release-prompt__actions">
+              <button type="button" onClick={confirmReleaseAndAdd}>
+                Remove &amp; add {releasePrompt.place.name}
+              </button>
+              <button type="button" onClick={() => setReleasePrompt(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
