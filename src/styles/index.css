@@ -1142,6 +1142,44 @@ h1, h2, h3 {
   font-size: 0.88rem;
 }
 
+.check-in-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  background: #eef6ee;
+  border: 1px solid #d3e8d3;
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+}
+
+.check-in-bar__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #3a6b3a;
+  cursor: pointer;
+}
+
+.check-in-bar__note {
+  color: #6b5d52;
+  font-size: 0.8rem;
+}
+
+.itin-card__visited {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #3a6b3a;
+  background: #e3f0e2;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
 .reflow-bar {
   background: #fbf4ea;
   border: 1px solid #ece2d6;

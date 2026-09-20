@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   DndContext,
@@ -42,6 +42,21 @@ function minutesToTime(minutes) {
 }
 
 const MAX_WAIT_MINUTES = 45;
+const VISIT_RADIUS_METERS = 150;
+
+// Distance between two lat/lng points, in meters. Used to auto-confirm a
+// stop as visited when the phone's live GPS position is close enough to the
+// place's known coordinates — not just "the plan says so."
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 
 // Mirrors the engine's earliest_start (backend/app/engine/engine.py): find the
 // earliest a place/food item could feasibly start at-or-after `arriveMinutes`,
@@ -150,6 +165,7 @@ function ItemCard({ item, editable, onSkip, onUndo }) {
         <div className="itin-card__body">
           <div className="itin-card__title-row">
             <h3>{item.title}</h3>
+            {item.status === "done" && <span className="itin-card__visited">Visited ✓</span>}
             {item.cost_pp > 0 && <span className="itin-card__cost">₹{item.cost_pp}</span>}
           </div>
           {item.notes && <p className="itin-card__notes">{item.notes}</p>}
@@ -393,6 +409,16 @@ export default function Itinerary() {
   // isn't mistaken for a drag start — works the same for mouse and touch,
   // since PointerSensor unifies both.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [checkInEnabled, setCheckInEnabled] = useState(false);
+  const [checkInError, setCheckInError] = useState(null);
+  const latestRef = useRef({});
+
+  const day = itinerary?.days?.[dayIndex] ?? null;
+  const realItems = day ? day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind)) : [];
+  const placesById = Object.fromEntries(places.map((p) => [p.id, p]));
+  const foodById = Object.fromEntries(food.map((f) => [f.id, f]));
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const isToday = day?.date === todayIso;
 
   useEffect(() => {
     getPlaces(city).then(setPlaces).catch(() => {});
@@ -405,6 +431,47 @@ export default function Itinerary() {
     return () => clearTimeout(t);
   }, [message]);
 
+  // Kept fresh every render so the geolocation callback below (registered
+  // once per toggle, not per render) never reads stale closures.
+  useEffect(() => {
+    latestRef.current = { realItems, placesById, foodById, dayIndex };
+  });
+
+  useEffect(() => {
+    if (!checkInEnabled || !navigator.geolocation) return undefined;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { realItems: items, placesById: pById, foodById: fById, dayIndex: di } = latestRef.current;
+        const { latitude, longitude } = position.coords;
+
+        for (const item of items) {
+          if (item.status !== "planned") continue;
+          const catalogEntry =
+            item.kind === "place" ? pById[item.ref_id] : item.kind === "meal" ? fById[item.ref_id] : null;
+          if (!catalogEntry) continue;
+
+          const distance = haversineMeters(latitude, longitude, catalogEntry.lat, catalogEntry.lng);
+          if (distance <= VISIT_RADIUS_METERS) {
+            setItinerary((prev) => {
+              const days = prev.days.map((d, i) =>
+                i === di
+                  ? { ...d, items: d.items.map((it) => (it.id === item.id ? { ...it, status: "done" } : it)) }
+                  : d
+              );
+              return { ...prev, days };
+            });
+            setMessage(`✓ You're at ${item.title} — marked as visited.`);
+          }
+        }
+      },
+      (err) => setCheckInError(err.message),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [checkInEnabled]);
+
   if (!itinerary) {
     return (
       <div className="itin-empty">
@@ -414,11 +481,7 @@ export default function Itinerary() {
     );
   }
 
-  const day = itinerary.days[dayIndex];
-  const realItems = day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind));
   const realItemIds = realItems.map((i) => i.id);
-  const placesById = Object.fromEntries(places.map((p) => [p.id, p]));
-  const foodById = Object.fromEntries(food.map((f) => [f.id, f]));
 
   const usedPlaceIds = new Set(
     itinerary.days.flatMap((d) => d.items.filter((i) => i.kind === "place").map((i) => i.ref_id))
@@ -564,6 +627,29 @@ export default function Itinerary() {
           </button>
         ))}
       </nav>
+
+      {canEdit && (
+        <div className="check-in-bar">
+          <label className="check-in-bar__toggle">
+            <input
+              type="checkbox"
+              checked={checkInEnabled}
+              disabled={!isToday}
+              onChange={(e) => {
+                setCheckInError(null);
+                setCheckInEnabled(e.target.checked);
+              }}
+            />
+            Auto check-in with my location
+          </label>
+          <span className="check-in-bar__note">
+            {isToday
+              ? "Keep this page open while you're out — stops get marked visited automatically."
+              : "Only available on today's day tab."}
+          </span>
+          {checkInError && <span className="error">{checkInError}</span>}
+        </div>
+      )}
 
       {canEdit && <ReflowBar realItems={realItems} busy={reflowBusy} onApply={applyDisruption} />}
 
