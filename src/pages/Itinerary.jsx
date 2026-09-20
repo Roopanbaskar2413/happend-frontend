@@ -12,6 +12,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { getFood, getPlaces } from "../api/places.js";
 import { replan as replanApi } from "../api/replan.js";
 import { updateSavedPlan } from "../api/savedPlans.js";
+import { createMemory, uploadPhoto } from "../api/memories.js";
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const CONNECTOR_KINDS = new Set(["travel", "transfer"]);
@@ -120,8 +121,9 @@ function moveById(list, draggedId, targetId) {
   return copy;
 }
 
-function ItemCard({ item, editable, onSkip, onUndo }) {
+function ItemCard({ item, editable, onSkip, onUndo, onAddPhoto, photoBusy }) {
   const isSkipped = item.status === "skipped";
+  const fileInputRef = useRef(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
     disabled: !editable || isSkipped,
@@ -166,6 +168,32 @@ function ItemCard({ item, editable, onSkip, onUndo }) {
           <div className="itin-card__title-row">
             <h3>{item.title}</h3>
             {item.status === "done" && <span className="itin-card__visited">Visited ✓</span>}
+            {item.status === "done" && onAddPhoto && (
+              <>
+                <button
+                  type="button"
+                  className="itin-card__photo-btn"
+                  title="Add a photo to your trip memory"
+                  aria-label={`Add a photo of ${item.title}`}
+                  disabled={photoBusy}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  📷
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) onAddPhoto(file, item.title);
+                  }}
+                />
+              </>
+            )}
             {item.cost_pp > 0 && <span className="itin-card__cost">₹{item.cost_pp}</span>}
           </div>
           {item.notes && <p className="itin-card__notes">{item.notes}</p>}
@@ -411,13 +439,18 @@ export default function Itinerary() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [checkInEnabled, setCheckInEnabled] = useState(false);
   const [checkInError, setCheckInError] = useState(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const latestRef = useRef({});
+  const memoryIdRef = useRef(null);
 
   const day = itinerary?.days?.[dayIndex] ?? null;
   const realItems = day ? day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind)) : [];
   const placesById = Object.fromEntries(places.map((p) => [p.id, p]));
   const foodById = Object.fromEntries(food.map((f) => [f.id, f]));
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate()
+  ).padStart(2, "0")}`;
   const isToday = day?.date === todayIso;
 
   useEffect(() => {
@@ -462,6 +495,17 @@ export default function Itinerary() {
               return { ...prev, days };
             });
             setMessage(`✓ You're at ${item.title} — marked as visited.`);
+
+            if ("Notification" in window && Notification.permission === "granted") {
+              const notification = new Notification(`You reached ${item.title}`, {
+                body: "Tap to continue your trip.",
+                tag: item.id,
+              });
+              notification.onclick = () => {
+                window.focus();
+                notification.close();
+              };
+            }
           }
         }
       },
@@ -563,6 +607,26 @@ export default function Itinerary() {
     }
   }
 
+  async function handleAddPhoto(file, placeTitle) {
+    if (!planId) {
+      setMessage("Save this trip before adding photos to memories.");
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      if (!memoryIdRef.current) {
+        const memory = await createMemory(planId);
+        memoryIdRef.current = memory.id;
+      }
+      await uploadPhoto(memoryIdRef.current, file);
+      setMessage(`📷 Photo from ${placeTitle} added to your trip memory.`);
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
   async function applyDisruption(partial) {
     setReflowBusy(true);
     try {
@@ -638,13 +702,16 @@ export default function Itinerary() {
               onChange={(e) => {
                 setCheckInError(null);
                 setCheckInEnabled(e.target.checked);
+                if (e.target.checked && "Notification" in window && Notification.permission === "default") {
+                  Notification.requestPermission();
+                }
               }}
             />
             Auto check-in with my location
           </label>
           <span className="check-in-bar__note">
             {isToday
-              ? "Keep this page open while you're out — stops get marked visited automatically."
+              ? "Keep this page open while you're out — stops get marked visited automatically, with a notification when you arrive."
               : "Only available on today's day tab."}
           </span>
           {checkInError && <span className="error">{checkInError}</span>}
@@ -673,6 +740,8 @@ export default function Itinerary() {
                   editable={canEdit}
                   onSkip={() => setItemStatus(item.id, "skipped")}
                   onUndo={() => setItemStatus(item.id, "planned")}
+                  onAddPhoto={canEdit ? handleAddPhoto : null}
+                  photoBusy={photoBusy}
                 />
               )
             )}

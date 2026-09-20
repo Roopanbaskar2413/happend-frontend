@@ -1180,6 +1180,25 @@ h1, h2, h3 {
   border-radius: 999px;
 }
 
+.itin-card__photo-btn {
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.itin-card__photo-btn:hover {
+  background: #f0e9df;
+}
+
+.itin-card__photo-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .reflow-bar {
   background: #fbf4ea;
   border: 1px solid #ece2d6;
