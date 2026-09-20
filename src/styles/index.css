@@ -1303,69 +1303,32 @@ h1, h2, h3 {
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
-.itin-card[draggable="true"] {
-  cursor: grab;
-}
-
-.itin-card.is-drop-target {
-  border-color: #c1502e;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 14px rgba(193, 80, 46, 0.15);
+.itin-card.is-dragging {
+  opacity: 0.5;
+  box-shadow: 0 4px 14px rgba(193, 80, 46, 0.2);
+  z-index: 1;
 }
 
 .itin-card__drag-handle {
   position: absolute;
-  top: 16px;
-  left: 8px;
+  top: 12px;
+  left: 4px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #d8cfc4;
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   line-height: 1;
   letter-spacing: -2px;
   cursor: grab;
   user-select: none;
+  touch-action: none;
 }
 
-.itin-card__move-buttons {
-  display: none;
-}
-
-/* Native HTML5 drag-and-drop doesn't fire reliably on touch devices, so
-   touch-primary screens get move-up/move-down buttons instead of the drag
-   handle. `(hover: none)` is the standard signal for "no mouse present". */
-@media (hover: none) and (pointer: coarse) {
-  .itin-card__drag-handle {
-    display: none;
-  }
-
-  .itin-card__move-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    position: absolute;
-    top: 12px;
-    left: 6px;
-  }
-
-  .itin-card__move-btn {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    border: 1px solid #e0d4c5;
-    background: #fff;
-    color: #c1502e;
-    font-size: 0.65rem;
-    line-height: 1;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-  }
-
-  .itin-card__move-btn:disabled {
-    color: #d8cfc4;
-    cursor: default;
-  }
+.itin-card__drag-handle:active {
+  cursor: grabbing;
 }
 
 .itin-card__content {

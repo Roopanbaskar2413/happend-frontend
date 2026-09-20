@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { getFood, getPlaces } from "../api/places.js";
 import { replan as replanApi } from "../api/replan.js";
 import { updateSavedPlan } from "../api/savedPlans.js";
@@ -96,54 +105,26 @@ function moveById(list, draggedId, targetId) {
   return copy;
 }
 
-function ItemCard({
-  item,
-  editable,
-  onSkip,
-  onUndo,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  isDropTarget,
-  isFirst,
-  isLast,
-  onMoveUp,
-  onMoveDown,
-}) {
+function ItemCard({ item, editable, onSkip, onUndo }) {
   const isSkipped = item.status === "skipped";
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled: !editable || isSkipped,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   return (
     <div
-      className={`itin-card itin-card--${item.kind}${isDropTarget ? " is-drop-target" : ""}`}
-      draggable={editable && !isSkipped}
-      onDragStart={editable ? onDragStart : undefined}
-      onDragOver={editable ? onDragOver : undefined}
-      onDrop={editable ? onDrop : undefined}
+      ref={setNodeRef}
+      style={style}
+      className={`itin-card itin-card--${item.kind}${isDragging ? " is-dragging" : ""}`}
     >
       {editable && !isSkipped && (
-        <span className="itin-card__drag-handle" title="Drag to reorder">
+        <span className="itin-card__drag-handle" title="Drag to reorder" {...attributes} {...listeners}>
           ⋮⋮
-        </span>
-      )}
-      {editable && !isSkipped && (
-        <span className="itin-card__move-buttons">
-          <button
-            type="button"
-            className="itin-card__move-btn"
-            onClick={onMoveUp}
-            disabled={isFirst}
-            aria-label={`Move ${item.title} earlier`}
-          >
-            ▲
-          </button>
-          <button
-            type="button"
-            className="itin-card__move-btn"
-            onClick={onMoveDown}
-            disabled={isLast}
-            aria-label={`Move ${item.title} later`}
-          >
-            ▼
-          </button>
         </span>
       )}
       {editable &&
@@ -404,12 +385,14 @@ export default function Itinerary() {
   const [places, setPlaces] = useState([]);
   const [food, setFood] = useState([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [dragId, setDragId] = useState(null);
-  const [dropTargetId, setDropTargetId] = useState(null);
   const [message, setMessage] = useState(null);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
   const [changeLog, setChangeLog] = useState(null);
   const [reflowBusy, setReflowBusy] = useState(false);
+  // A small activation distance means a tap (map/book links, skip button)
+  // isn't mistaken for a drag start — works the same for mouse and touch,
+  // since PointerSensor unifies both.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   useEffect(() => {
     getPlaces(city).then(setPlaces).catch(() => {});
@@ -498,20 +481,10 @@ export default function Itinerary() {
     updateDay((d) => ({ ...d, items: result.items }));
   }
 
-  function handleDropReorder(targetId) {
-    setDropTargetId(null);
-    const draggedId = dragId;
-    setDragId(null);
-    reorderItems(draggedId, targetId);
-  }
-
-  // Fallback for touch devices, where the native HTML5 drag gesture doesn't
-  // fire reliably: move-up/move-down buttons drive the same reorder path.
-  function handleMoveItem(itemId, direction) {
-    const index = realItems.findIndex((i) => i.id === itemId);
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= realItems.length) return;
-    reorderItems(itemId, realItems[targetIndex].id);
+  function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    reorderItems(active.id, over.id);
   }
 
   async function handleSaveChanges() {
@@ -602,33 +575,23 @@ export default function Itinerary() {
 
       <main className="itin-timeline">
         {day.items.length === 0 && <p className="itin-empty-day">Nothing scheduled this day.</p>}
-        {day.items.map((item) =>
-          CONNECTOR_KINDS.has(item.kind) ? (
-            <ConnectorRow key={item.id} item={item} />
-          ) : (
-            <ItemCard
-              key={item.id}
-              item={item}
-              editable={canEdit}
-              isDropTarget={dropTargetId === item.id}
-              isFirst={realItemIds.indexOf(item.id) === 0}
-              isLast={realItemIds.indexOf(item.id) === realItemIds.length - 1}
-              onSkip={() => setItemStatus(item.id, "skipped")}
-              onUndo={() => setItemStatus(item.id, "planned")}
-              onMoveUp={() => handleMoveItem(item.id, "up")}
-              onMoveDown={() => handleMoveItem(item.id, "down")}
-              onDragStart={() => setDragId(item.id)}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (dropTargetId !== item.id) setDropTargetId(item.id);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                handleDropReorder(item.id);
-              }}
-            />
-          )
-        )}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={realItemIds} strategy={verticalListSortingStrategy}>
+            {day.items.map((item) =>
+              CONNECTOR_KINDS.has(item.kind) ? (
+                <ConnectorRow key={item.id} item={item} />
+              ) : (
+                <ItemCard
+                  key={item.id}
+                  item={item}
+                  editable={canEdit}
+                  onSkip={() => setItemStatus(item.id, "skipped")}
+                  onUndo={() => setItemStatus(item.id, "planned")}
+                />
+              )
+            )}
+          </SortableContext>
+        </DndContext>
 
         {canEdit &&
           (pickerOpen ? (
