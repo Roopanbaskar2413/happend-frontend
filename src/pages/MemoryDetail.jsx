@@ -3,13 +3,17 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   addStory,
   deleteMemory,
+  deleteMusic,
   deletePhoto,
   deleteStory,
   getMemory,
   photoUrl,
   updateStory,
+  uploadMusic,
   uploadPhoto,
 } from "../api/memories.js";
+import { getSavedPlan } from "../api/savedPlans.js";
+import TripClipPlayer from "../components/memories/TripClipPlayer.jsx";
 
 function StoryRow({ memoryId, story, onChanged }) {
   const [editing, setEditing] = useState(false);
@@ -72,14 +76,22 @@ export default function MemoryDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const musicInputRef = useRef(null);
   const [memory, setMemory] = useState(null);
+  const [city, setCity] = useState("");
   const [newStory, setNewStory] = useState("");
   const [error, setError] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingMusic, setUploadingMusic] = useState(false);
+  const [playing, setPlaying] = useState(false);
 
   function refresh() {
     getMemory(id)
-      .then(setMemory)
+      .then((m) => {
+        setMemory(m);
+        return getSavedPlan(m.saved_plan_id);
+      })
+      .then((plan) => setCity(plan.city))
       .catch((err) => setError(err.message));
   }
 
@@ -122,6 +134,31 @@ export default function MemoryDetail() {
     }
   }
 
+  async function handleUploadMusic(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingMusic(true);
+    setError(null);
+    try {
+      await uploadMusic(id, file);
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploadingMusic(false);
+      if (musicInputRef.current) musicInputRef.current.value = "";
+    }
+  }
+
+  async function handleDeleteMusic() {
+    try {
+      await deleteMusic(id);
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleDeleteMemory() {
     try {
       await deleteMemory(id);
@@ -145,6 +182,10 @@ export default function MemoryDetail() {
   }
 
   const { summary } = memory;
+
+  if (playing) {
+    return <TripClipPlayer memory={memory} city={city} onClose={() => setPlaying(false)} />;
+  }
 
   return (
     <div className="summary-page">
@@ -172,6 +213,38 @@ export default function MemoryDetail() {
       {summary.places_visited?.length > 0 && (
         <p className="memory-summary__places">Visited: {summary.places_visited.join(", ")}</p>
       )}
+
+      <button
+        type="button"
+        className="planner-submit trip-clip-launch"
+        onClick={() => setPlaying(true)}
+        disabled={memory.photos.length === 0 && memory.stories.length === 0}
+      >
+        ▶ Play trip clip
+      </button>
+
+      <div className="memory-music">
+        {memory.has_music ? (
+          <>
+            <span>Background song added.</span>
+            <button type="button" onClick={handleDeleteMusic}>
+              Remove
+            </button>
+          </>
+        ) : (
+          <label className="memory-music__add">
+            {uploadingMusic ? "Uploading…" : "+ Add a background song"}
+            <input
+              ref={musicInputRef}
+              type="file"
+              accept="audio/mpeg,audio/mp4,audio/wav"
+              onChange={handleUploadMusic}
+              disabled={uploadingMusic}
+              hidden
+            />
+          </label>
+        )}
+      </div>
 
       <h2 className="landing__section-title">Photos</h2>
       <div className="memory-photos">

@@ -74,3 +74,24 @@ export function deletePhoto(memoryId, photoId) {
     credentials: "include",
   }).then(handle);
 }
+
+export function uploadMusic(memoryId, file) {
+  const form = new FormData();
+  form.append("file", file);
+  return fetch(`${BASE_URL}/memories/${memoryId}/music`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  }).then(handle);
+}
+
+export function musicUrl(memoryId) {
+  return `${BASE_URL}/memories/${memoryId}/music`;
+}
+
+export function deleteMusic(memoryId) {
+  return fetch(`${BASE_URL}/memories/${memoryId}/music`, {
+    method: "DELETE",
+    credentials: "include",
+  }).then(handle);
+}
