@@ -1833,6 +1833,130 @@ h1, h2, h3 {
   text-decoration: none;
 }
 
+.memory-card {
+  display: block;
+  text-decoration: none !important;
+  color: inherit;
+  cursor: pointer;
+}
+
+.memory-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 16px;
+}
+
+.memory-summary span {
+  background: #fbf4ea;
+  color: #a8621f;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+.memory-summary__places {
+  font-size: 0.85rem;
+  color: #6b5d52;
+  margin: 0 0 24px;
+}
+
+.memory-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.memory-photo {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #ece2d6;
+}
+
+.memory-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.memory-photo button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.memory-photo--upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px;
+  font-size: 0.82rem;
+  color: #a8621f;
+  background: #fbf4ea;
+  cursor: pointer;
+}
+
+.story-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 40px;
+}
+
+.story-row {
+  background: #fff;
+  border: 1px solid #ece2d6;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.story-row p {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.story-row textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #e0d4c5;
+  margin-bottom: 8px;
+}
+
+.story-row__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.story-row__actions button {
+  border: none;
+  background: none;
+  color: #c1502e;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
 .summary-actions {
   display: flex;
   gap: 12px;

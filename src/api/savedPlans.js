@@ -44,6 +44,15 @@ export function deleteSavedPlan(id) {
   return fetch(`${BASE_URL}/saved-plans/${id}`, { method: "DELETE", credentials: "include" }).then(handle);
 }
 
+export function updatePlanStatus(id, status) {
+  return fetch(`${BASE_URL}/saved-plans/${id}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ status }),
+  }).then(handle);
+}
+
 export function sharePlan(id, email) {
   return fetch(`${BASE_URL}/saved-plans/${id}/shares`, {
     method: "POST",

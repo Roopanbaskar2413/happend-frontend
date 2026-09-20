@@ -11,7 +11,9 @@ import {
   requestEdit,
   revokeShare,
   sharePlan,
+  updatePlanStatus,
 } from "../api/savedPlans.js";
+import { createMemory } from "../api/memories.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 function formatDate(iso) {
@@ -174,6 +176,24 @@ export default function MyTrips() {
     refresh();
   }
 
+  async function handleMarkCompleted(id) {
+    try {
+      await updatePlanStatus(id, "completed");
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleAddMemory(id) {
+    try {
+      const memory = await createMemory(id);
+      navigate(`/memories/${memory.id}`);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <div className="summary-page">
       <header className="itin-header">
@@ -201,6 +221,7 @@ export default function MyTrips() {
             </p>
             <p className="summary-card__notes">
               {plan.reminder_sent_at ? "Reminder sent" : "Reminder pending"}
+              {plan.status === "completed" && " · Completed"}
             </p>
             <div className="itin-card__links">
               <button type="button" onClick={() => openPlan(plan.id)} disabled={openingId === plan.id}>
@@ -209,6 +230,15 @@ export default function MyTrips() {
               <button type="button" onClick={() => setSharingId(plan.id)}>
                 Share
               </button>
+              {plan.status === "completed" ? (
+                <button type="button" onClick={() => handleAddMemory(plan.id)}>
+                  Add memory
+                </button>
+              ) : (
+                <button type="button" onClick={() => handleMarkCompleted(plan.id)}>
+                  Mark as completed
+                </button>
+              )}
               <a
                 href="#"
                 onClick={(e) => {

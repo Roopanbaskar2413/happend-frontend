@@ -170,6 +170,7 @@ export default function Landing() {
           {user ? (
             <>
               <Link to="/trips">My trips</Link>
+              <Link to="/memories">Memories</Link>
               <button type="button" onClick={logout}>
                 Log out
               </button>

@@ -13,6 +13,8 @@ import MyTrips from "./pages/MyTrips.jsx";
 import VerifyEmail from "./pages/VerifyEmail.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
+import Memories from "./pages/Memories.jsx";
+import MemoryDetail from "./pages/MemoryDetail.jsx";
 
 export default function App() {
   return (
@@ -35,6 +37,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <MyTrips />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/memories"
+            element={
+              <ProtectedRoute>
+                <Memories />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/memories/:id"
+            element={
+              <ProtectedRoute>
+                <MemoryDetail />
               </ProtectedRoute>
             }
           />
