@@ -508,7 +508,7 @@ function GuideChat({ city, day, realItems, catalogById, tryAddPlace, tryRemovePl
   return (
     <div className="guide-chat">
       <div className="guide-chat__header">
-        <span>🧭 AI Guide</span>
+        <span>AI Guide</span>
         <button type="button" onClick={onClose} aria-label="Close guide">
           ×
         </button>
@@ -821,7 +821,7 @@ export default function Itinerary() {
               className="itin-header__guide-btn"
               onClick={() => setGuideOpen((o) => !o)}
             >
-              🧭 AI Guide
+              AI Guide
             </button>
           )}
           <button
