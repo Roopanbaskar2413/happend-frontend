@@ -13,6 +13,7 @@ import { getFood, getPlaces } from "../api/places.js";
 import { replan as replanApi } from "../api/replan.js";
 import { updateSavedPlan } from "../api/savedPlans.js";
 import { createMemory, uploadPhoto } from "../api/memories.js";
+import { chatWithGuide } from "../api/guide.js";
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const CONNECTOR_KINDS = new Set(["travel", "transfer"]);
@@ -422,6 +423,124 @@ function AddPlacePanel({ places, usedIds, weekday, anchorMinutes, onAdd, onClose
   );
 }
 
+const GUIDE_INTRO =
+  "Hi! Tell me what you'd like to change — add a place, remove a stop, or move something earlier.";
+const GUIDE_MAX_STEPS = 4;
+
+function toGuideItem(item) {
+  return { id: item.id, title: item.title, kind: item.kind, status: item.status, start: item.start, end: item.end };
+}
+
+// A conversational front-end to the same deterministic logic the buttons
+// above already use (tryAddPlace/tryRemovePlace/tryReorderBefore) — the
+// model picks *what* the user means, but every actual schedule change still
+// goes through the same opening-hours/feasibility checks, so it can't
+// produce an itinerary the rest of the app wouldn't also allow.
+function GuideChat({ city, day, realItems, catalogById, tryAddPlace, tryRemovePlace, tryReorderBefore, onClose }) {
+  const [displayMessages, setDisplayMessages] = useState([{ role: "assistant", text: GUIDE_INTRO }]);
+  const [contents, setContents] = useState([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  function executeTool(name, args) {
+    if (name === "add_place") {
+      const place = catalogById[args.place_id];
+      if (!place) return { error: "That place id doesn't exist in the catalog." };
+      const result = tryAddPlace(place);
+      return result.ok ? { result: `Added ${place.name}.` } : { error: result.reason };
+    }
+    if (name === "remove_place") {
+      const result = tryRemovePlace(args.item_id);
+      return result.ok ? { result: `Removed ${result.title}.` } : { error: result.reason };
+    }
+    if (name === "reorder_before") {
+      const result = tryReorderBefore(args.item_id, args.before_item_id);
+      return result.ok ? { result: "Reordered." } : { error: result.reason };
+    }
+    return { error: `Unknown tool ${name}` };
+  }
+
+  async function runTurn(startContents) {
+    setBusy(true);
+    setError(null);
+    try {
+      let contentsSoFar = startContents;
+      for (let step = 0; step < GUIDE_MAX_STEPS; step++) {
+        const res = await chatWithGuide({
+          city,
+          day: { weekday: day.weekday, items: realItems.map(toGuideItem) },
+          contents: contentsSoFar,
+        });
+        contentsSoFar = res.contents;
+        setContents(contentsSoFar);
+
+        if (res.tool_call) {
+          const toolResult = executeTool(res.tool_call.name, res.tool_call.args);
+          contentsSoFar = [
+            ...contentsSoFar,
+            { role: "user", parts: [{ function_response: { name: res.tool_call.name, response: toolResult } }] },
+          ];
+          continue;
+        }
+
+        setDisplayMessages((m) => [...m, { role: "assistant", text: res.reply || "" }]);
+        return;
+      }
+      setError("The guide is taking too many steps — try rephrasing.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleSend() {
+    const text = input.trim();
+    if (!text || busy) return;
+    setInput("");
+    setDisplayMessages((m) => [...m, { role: "user", text }]);
+    const nextContents = [...contents, { role: "user", parts: [{ text }] }];
+    setContents(nextContents);
+    runTurn(nextContents);
+  }
+
+  return (
+    <div className="guide-chat">
+      <div className="guide-chat__header">
+        <span>🧭 AI Guide</span>
+        <button type="button" onClick={onClose} aria-label="Close guide">
+          ×
+        </button>
+      </div>
+      <div className="guide-chat__messages">
+        {displayMessages.map((m, i) => (
+          <div key={i} className={`guide-chat__bubble guide-chat__bubble--${m.role}`}>
+            {m.text}
+          </div>
+        ))}
+        {busy && (
+          <div className="guide-chat__bubble guide-chat__bubble--assistant guide-chat__bubble--typing">…</div>
+        )}
+      </div>
+      {error && <p className="error">{error}</p>}
+      <div className="guide-chat__input-row">
+        <input
+          type="text"
+          placeholder="e.g. add the museum, remove the boat house…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          disabled={busy}
+        />
+        <button type="button" onClick={handleSend} disabled={busy || !input.trim()}>
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Itinerary() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -446,6 +565,7 @@ export default function Itinerary() {
   const [checkInEnabled, setCheckInEnabled] = useState(false);
   const [checkInError, setCheckInError] = useState(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const latestRef = useRef({});
   const memoryIdRef = useRef(null);
 
@@ -551,12 +671,13 @@ export default function Itinerary() {
     }));
   }
 
-  function handleAddPlace(place) {
+  // Shared by the "+Add a place" button and the AI guide's add_place tool —
+  // both need the same feasibility check and the same mutation.
+  function tryAddPlace(place) {
     const lastItem = day.items[day.items.length - 1];
     const start = lastItem ? timeToMinutes(lastItem.end) : 9 * 60;
     if (earliestStart(place.windows, place.closed_days, day.weekday, start, place.duration_min) === null) {
-      setMessage(`${place.name} is closed at this time.`);
-      return;
+      return { ok: false, reason: `${place.name} is closed at this time.` };
     }
     const end = start + place.duration_min;
     const newItem = {
@@ -576,26 +697,45 @@ export default function Itinerary() {
       warning: null,
     };
     updateDay((d) => ({ ...d, items: [...d.items, newItem] }));
+    return { ok: true };
+  }
+
+  function handleAddPlace(place) {
+    const result = tryAddPlace(place);
+    if (!result.ok) setMessage(result.reason);
     setPickerOpen(false);
   }
 
-  function reorderItems(draggedId, targetId) {
-    if (!draggedId || draggedId === targetId) return;
+  // Shared by removing/skipping a stop from the UI and the AI guide's
+  // remove_place tool.
+  function tryRemovePlace(itemId) {
+    const item = day.items.find((i) => i.id === itemId);
+    if (!item) return { ok: false, reason: "That stop isn't in today's plan." };
+    setItemStatus(itemId, "skipped");
+    return { ok: true, title: item.title };
+  }
+
+  // Shared by drag-reorder and the AI guide's reorder_before tool.
+  function tryReorderBefore(draggedId, targetId) {
+    if (!draggedId || draggedId === targetId) return { ok: false, reason: "Nothing to reorder." };
 
     const realItems = day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind));
     const anchor = timeToMinutes(realItems[0].start);
     const reordered = moveById(realItems, draggedId, targetId);
     const result = recomputeWithFeasibility(reordered, day.weekday, placesById, foodById, anchor);
 
-    if (!result.ok) {
-      setMessage(result.reason); // reject the whole reorder, leave the day untouched
-      return;
-    }
+    if (!result.ok) return { ok: false, reason: result.reason };
 
     // Reordering only makes sense for the "real" stops — old travel connectors
     // no longer describe the new adjacency, so they're dropped (same trade-off
     // "Add a place" already makes: no travel-time recalculation without re-flow).
     updateDay((d) => ({ ...d, items: result.items }));
+    return { ok: true };
+  }
+
+  function reorderItems(draggedId, targetId) {
+    const result = tryReorderBefore(draggedId, targetId);
+    if (!result.ok) setMessage(result.reason); // reject the whole reorder, leave the day untouched
   }
 
   function handleDragEnd(event) {
@@ -675,6 +815,15 @@ export default function Itinerary() {
               {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved ✓" : "Save changes"}
             </button>
           )}
+          {canEdit && (
+            <button
+              type="button"
+              className="itin-header__guide-btn"
+              onClick={() => setGuideOpen((o) => !o)}
+            >
+              🧭 AI Guide
+            </button>
+          )}
           <button
             type="button"
             className="itin-header__summary-btn"
@@ -701,6 +850,19 @@ export default function Itinerary() {
           </button>
         ))}
       </nav>
+
+      {canEdit && guideOpen && (
+        <GuideChat
+          city={city}
+          day={day}
+          realItems={realItems}
+          catalogById={{ ...placesById, ...foodById }}
+          tryAddPlace={tryAddPlace}
+          tryRemovePlace={tryRemovePlace}
+          tryReorderBefore={tryReorderBefore}
+          onClose={() => setGuideOpen(false)}
+        />
+      )}
 
       {canEdit && (
         <div className="check-in-bar">
