@@ -103,9 +103,18 @@ function NoteEditor({ value, onApply, onClose }) {
     const before = draft.slice(0, pos);
     const after = draft.slice(pos);
     const needsNewline = before.length > 0 && !before.endsWith("\n");
-    const newValue = `${before}${needsNewline ? "\n" : ""}${prefix}${after}`;
+    const insertion = `${needsNewline ? "\n" : ""}${prefix}`;
+    const newValue = `${before}${insertion}${after}`;
+    const newCaret = before.length + insertion.length;
     setDraft(newValue);
-    requestAnimationFrame(() => el?.focus());
+    // Focusing a textarea after its value changes resets the caret to the
+    // very start unless the selection is explicitly restored -- without
+    // this, typing right after clicking a toolbar button inserted text at
+    // position 0 instead of continuing from the new prefix.
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(newCaret, newCaret);
+    });
   }
 
   return (
