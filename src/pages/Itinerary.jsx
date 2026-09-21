@@ -200,11 +200,20 @@ function recomputeWithFeasibility(items, weekday, placesById, foodById, anchorMi
   const result = [];
   let allFit = true;
   for (const item of items) {
+    // A skipped stop no longer happens, so it can't hold up anything after
+    // it -- leave its own (now purely historical) time untouched and don't
+    // advance the cursor, so the next active stop closes right up to
+    // whatever came before it instead of waiting out the skipped slot.
+    if (item.status === "skipped") {
+      result.push(item);
+      continue;
+    }
+
     const duration = timeToMinutes(item.end) - timeToMinutes(item.start);
     const catalogEntry =
       item.kind === "place" ? placesById[item.ref_id] : item.kind === "meal" ? foodById[item.ref_id] : null;
 
-    if (item.status === "skipped" || !catalogEntry) {
+    if (!catalogEntry) {
       const start = cursor;
       const end = start + duration;
       result.push({ ...item, start: minutesToTime(start), end: minutesToTime(end) });
@@ -1426,11 +1435,18 @@ export default function Itinerary() {
     setItinerary(next);
   }
 
+  // Skipping (or un-skipping) a stop changes how much time is actually
+  // spoken for that day, so everything after it needs to close the gap (or
+  // make room again on undo) instead of keeping whatever times were
+  // computed back when the stop was still active.
   function setItemStatus(itemId, status) {
-    updateDay((d) => ({
-      ...d,
-      items: d.items.map((i) => (i.id === itemId ? { ...i, status } : i)),
-    }));
+    const currentDay = itineraryRef.current.days[dayIndex];
+    const realItems = currentDay.items.filter((i) => !CONNECTOR_KINDS.has(i.kind));
+    const anchor = timeToMinutes(realItems[0].start);
+    const updated = realItems.map((i) => (i.id === itemId ? { ...i, status } : i));
+    const result = recomputeWithFeasibility(updated, currentDay.weekday, placesById, foodById, anchor);
+    const withConnectors = withRebuiltConnectors(result.items, placesById, foodById);
+    updateDay((d) => ({ ...d, items: withConnectors }));
   }
 
   // Shared by the "+Add a place" button and the AI guide's add_place tool —
