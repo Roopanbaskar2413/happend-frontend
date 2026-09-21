@@ -75,6 +75,56 @@ function travelMinutesForMode(distanceKm, modeKey) {
   return Math.max(1, Math.round(((distanceKm * 1.3) / mode.speedKmh) * 60 + mode.bufferMin));
 }
 
+// Common words a user types don't literally appear in the catalog data --
+// "food" should surface every restaurant/cafe, "rental bike" should find a
+// place named "Rental Bicycle". Each key expands to itself plus its
+// synonyms/variants so a search term matches on meaning, not spelling.
+const SEARCH_SYNONYMS = {
+  food: ["restaurant", "cafe", "meal", "dining", "eatery", "breakfast", "lunch", "dinner", "snack"],
+  restaurant: ["food", "meal", "dining", "eatery"],
+  restaurants: ["food", "meal", "dining", "eatery"],
+  cafe: ["coffee", "cafe"],
+  coffee: ["cafe"],
+  bike: ["bicycle", "cycle", "cycling"],
+  bikes: ["bicycle", "cycle", "cycling"],
+  bicycle: ["bike", "cycle", "cycling"],
+  cycle: ["bicycle", "bike", "cycling"],
+  cycling: ["bicycle", "bike", "cycle"],
+  rental: ["rent", "hire"],
+  rent: ["rental", "hire"],
+  hire: ["rental", "rent"],
+  temple: ["shrine"],
+  church: ["basilica", "cathedral"],
+  shopping: ["market", "boutique", "store", "shop"],
+  shop: ["shopping", "market", "boutique", "store"],
+  turf: ["sports", "cricket", "football"],
+  sports: ["turf", "activity"],
+};
+
+function expandSearchTerm(word) {
+  return [word, ...(SEARCH_SYNONYMS[word] ?? [])];
+}
+
+// A catalog entry matches a query when every typed word (or one of its
+// synonyms) shows up somewhere in its searchable text -- words can match
+// across different fields, so "rental bike" finds a place whose category
+// says "activity" and whose name says "Rental Bicycle".
+function matchesSearch(item, queryWords) {
+  // Whole-word (prefix) matching, not raw substring -- a short synonym like
+  // "eat" would otherwise match inside unrelated words ("heat", "great",
+  // "repeat") anywhere in an item's notes, flooding results for common
+  // one-word searches like "food".
+  const tokens = [item.name, item.category, item.area, item.kind, item.notes, ...(item.interests ?? []), ...(item.meals ?? [])]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  return queryWords.every((word) =>
+    expandSearchTerm(word).some((variant) => tokens.some((token) => token.startsWith(variant)))
+  );
+}
+
 function catalogEntryFor(item, placesById, foodById) {
   if (item.kind === "place") return placesById[item.ref_id];
   if (item.kind === "meal") return foodById[item.ref_id];
@@ -766,14 +816,8 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
     ...food.map((f) => ({ ...f, kind: "meal", category: f.price_band })),
   ];
   const available = catalog.filter((p) => !usedIds.has(p.id));
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? available.filter((p) =>
-        [p.name, p.category, p.area, ...(p.interests ?? [])].some((field) =>
-          field?.toLowerCase().includes(q)
-        )
-      )
-    : available;
+  const queryWords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const filtered = queryWords.length ? available.filter((p) => matchesSearch(p, queryWords)) : available;
 
   return (
     <div className="add-place-panel">
