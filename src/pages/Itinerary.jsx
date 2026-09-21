@@ -116,7 +116,14 @@ function matchesSearch(item, queryWords) {
   // visible reason to be there -- e.g. "food" surfacing a beach because its
   // notes happen to mention nearby cafes -- which just looks like broken
   // search since nothing on the row explains the match.
-  const tokens = [item.name, item.category, item.area, item.kind, ...(item.meals ?? [])]
+  //
+  // Restaurants/cafes are the one exception: a dish name ("fried rice",
+  // "shawarma") only ever shows up in a food item's notes, since there's no
+  // separate menu field, and the row displays those notes for food items --
+  // see AddPlacePanel -- so the match is still visible, not a mystery.
+  const fields = [item.name, item.category, item.area, item.kind, ...(item.meals ?? [])];
+  if (item.kind === "meal") fields.push(item.notes);
+  const tokens = fields
     .filter(Boolean)
     .join(" ")
     .toLowerCase()
@@ -858,6 +865,9 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
                   {place.category} · {place.duration_min} min · ★ {place.rating} · {formatWindows(place.windows)}
                   {!feasible && " · May be closed at that time — you can still add it"}
                 </span>
+                {place.kind === "meal" && place.notes && (
+                  <span className="add-place-row__notes">{place.notes}</span>
+                )}
               </div>
               <button type="button" onClick={() => onAdd(place)}>
                 Add
