@@ -824,9 +824,14 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
     ...places.map((p) => ({ ...p, kind: "place" })),
     ...food.map((f) => ({ ...f, kind: "meal", category: f.price_band })),
   ];
-  const available = catalog.filter((p) => !usedIds.has(p.id));
+  // Browsing with no search term hides stops already in today's plan, to
+  // keep the default list short -- but a deliberate search still finds
+  // them. Some places are genuinely visited twice in a day (rent a bike in
+  // the morning, come back to return it by evening), so re-adding one on
+  // purpose needs to stay possible, just not clutter the default browse.
+  const unusedAvailable = catalog.filter((p) => !usedIds.has(p.id));
   const queryWords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const filtered = queryWords.length ? available.filter((p) => matchesSearch(p, queryWords)) : available;
+  const filtered = queryWords.length ? catalog.filter((p) => matchesSearch(p, queryWords)) : unusedAvailable;
 
   return (
     <div className="add-place-panel">
@@ -850,13 +855,14 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
       <div className="add-place-panel__list">
         {filtered.length === 0 && (
           <p className="add-place-panel__empty">
-            {available.length === 0 ? "Nothing left to add." : "No matches."}
+            {queryWords.length === 0 && unusedAvailable.length === 0 ? "Nothing left to add." : "No matches."}
           </p>
         )}
         {filtered.map((place) => {
           const feasible =
             earliestStart(place.windows, place.closed_days, weekday, anchorMinutes, place.duration_min) !==
             null;
+          const alreadyAdded = usedIds.has(place.id);
           return (
             <div key={place.id} className="add-place-row">
               <div>
@@ -864,6 +870,7 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
                 <span className="add-place-row__meta">
                   {place.category} · {place.duration_min} min · ★ {place.rating} · {formatWindows(place.windows)}
                   {!feasible && " · May be closed at that time — you can still add it"}
+                  {alreadyAdded && " · Already in today's plan — add again for a second visit (e.g. returning a rental)"}
                 </span>
                 {place.kind === "meal" && place.notes && (
                   <span className="add-place-row__notes">{place.notes}</span>
