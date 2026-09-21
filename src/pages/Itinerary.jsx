@@ -110,11 +110,13 @@ function expandSearchTerm(word) {
 // across different fields, so "rental bike" finds a place whose category
 // says "activity" and whose name says "Rental Bicycle".
 function matchesSearch(item, queryWords) {
-  // Whole-word (prefix) matching, not raw substring -- a short synonym like
-  // "eat" would otherwise match inside unrelated words ("heat", "great",
-  // "repeat") anywhere in an item's notes, flooding results for common
-  // one-word searches like "food".
-  const tokens = [item.name, item.category, item.area, item.kind, item.notes, ...(item.interests ?? []), ...(item.meals ?? [])]
+  // Only match fields the row actually shows (name, category, hours-ish
+  // meals) or that directly explain the result (kind). Matching against
+  // free-text notes or hidden interest tags turned up results with no
+  // visible reason to be there -- e.g. "food" surfacing a beach because its
+  // notes happen to mention nearby cafes -- which just looks like broken
+  // search since nothing on the row explains the match.
+  const tokens = [item.name, item.category, item.area, item.kind, ...(item.meals ?? [])]
     .filter(Boolean)
     .join(" ")
     .toLowerCase()
