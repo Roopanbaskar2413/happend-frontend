@@ -1417,15 +1417,42 @@ h1, h2, h3 {
   color: #c1502e;
 }
 
-button.itin-card__time--editable {
-  border: none;
-  background: none;
-  padding: 0;
+.itin-card__time-btn {
+  border: 1px solid #c1502e;
+  background: #fff;
+  padding: 5px 10px;
+  border-radius: 999px;
   text-align: left;
   font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #c1502e;
   cursor: pointer;
-  text-decoration: underline dotted;
-  text-decoration-color: #d8cfc4;
+}
+
+.itin-card__time-btn:hover {
+  background: #fbf0ea;
+}
+
+.duration-editor__range {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.duration-editor__range label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.74rem;
+  color: #6b5d52;
+}
+
+.duration-editor__range input[type="time"] {
+  padding: 5px 8px;
+  border: 1px solid #d8cfc4;
+  border-radius: 6px;
+  font-size: 0.8rem;
 }
 
 .duration-editor {

@@ -91,10 +91,48 @@ function connectorDistanceKm(dayItems, idx, placesById, foodById) {
   return haversineMeters(prevEntry.lat, prevEntry.lng, nextEntry.lat, nextEntry.lng) / 1000;
 }
 
+// Sets one item's exact start/end (not just how long it lasts -- a later
+// chosen start just leaves a gap before it, which is fine, real idle time)
+// and shifts every item after it by however much its END time changed.
+function applyTimeRangeChange(items, idx, newStart, newEnd) {
+  const oldEnd = timeToMinutes(items[idx].end);
+  const delta = timeToMinutes(newEnd) - oldEnd;
+  return items.map((it, i) => {
+    if (i < idx) return it;
+    if (i === idx) return { ...it, start: newStart, end: newEnd };
+    if (delta === 0) return it;
+    return {
+      ...it,
+      start: minutesToTime(timeToMinutes(it.start) + delta),
+      end: minutesToTime(timeToMinutes(it.end) + delta),
+    };
+  });
+}
+
+// After a shift, a later real stop might now land outside its own real
+// opening hours -- flag it plainly (reusing the existing warning line every
+// card already renders) instead of silently leaving a broken schedule
+// standing unremarked.
+function flagInfeasibleItems(items, weekday, placesById, foodById) {
+  return items.map((it) => {
+    if (CONNECTOR_KINDS.has(it.kind) || it.status === "skipped") return it;
+    const entry = catalogEntryFor(it, placesById, foodById);
+    if (!entry) return it;
+    const startMin = timeToMinutes(it.start);
+    const endMin = timeToMinutes(it.end);
+    const fits =
+      !entry.closed_days.includes(weekday) &&
+      entry.windows.some((w) => {
+        const [s, e] = w.split("-").map(timeToMinutes);
+        return startMin >= s && endMin <= e;
+      });
+    return { ...it, warning: fits ? null : `May be closed by then — real hours: ${formatWindows(entry.windows)}` };
+  });
+}
+
 // Changes one item's duration in place and shifts every item after it by
 // the same delta, keeping the rest of the day's relative timing intact --
-// used both for a stop's "how long will you spend here" edit and a
-// connector's travel-mode change.
+// used by a connector's travel-mode change.
 function applyDurationChange(items, idx, newDurationMinutes) {
   const item = items[idx];
   const oldDuration = timeToMinutes(item.end) - timeToMinutes(item.start);
@@ -354,49 +392,29 @@ function buildInsertedDayItems(dayItems, candidates, place, newStart, newEnd) {
   return result;
 }
 
-const SPEND_DURATION_OPTIONS_MIN = [30, 60, 90, 120, 180];
-
-function formatDurationLabel(mins) {
-  return mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(mins % 60 === 0 ? 0 : 1)} hr`;
-}
-
-// Bubbles + a plain-number fallback for whatever duration isn't one of the
-// presets -- same "click or type" flexibility as the guide's own duration
-// question, just without needing the AI in the loop for a same-page edit.
-function DurationEditor({ currentMinutes, onApply, onClose }) {
-  const [custom, setCustom] = useState("");
+// Explicit "from this time to this time" entry instead of just a duration —
+// closer to how a person actually plans ("I'll be at WTF from 8:46 to
+// 10:16"), and it naturally allows a gap before the visit too (arrived
+// earlier but chose to start later), not just a length.
+function TimeRangeEditor({ currentStart, currentEnd, onApply, onClose }) {
+  const [from, setFrom] = useState(currentStart);
+  const [to, setTo] = useState(currentEnd);
+  const invalid = !from || !to || timeToMinutes(to) <= timeToMinutes(from);
   return (
     <div className="duration-editor">
-      <p>How long will you spend here?</p>
-      <div className="duration-editor__options">
-        {SPEND_DURATION_OPTIONS_MIN.map((mins) => (
-          <button
-            key={mins}
-            type="button"
-            className={`duration-editor__chip${mins === currentMinutes ? " is-selected" : ""}`}
-            onClick={() => onApply(mins)}
-          >
-            {formatDurationLabel(mins)}
-          </button>
-        ))}
+      <p>When will you actually be here?</p>
+      <div className="duration-editor__range">
+        <label>
+          From
+          <input type="time" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label>
+          To
+          <input type="time" value={to} onChange={(e) => setTo(e.target.value)} />
+        </label>
       </div>
       <div className="duration-editor__custom">
-        <input
-          type="number"
-          min="5"
-          step="5"
-          placeholder="Custom minutes"
-          value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-        />
-        <button
-          type="button"
-          disabled={!custom}
-          onClick={() => {
-            const mins = parseInt(custom, 10);
-            if (mins > 0) onApply(mins);
-          }}
-        >
+        <button type="button" disabled={invalid} onClick={() => onApply(from, to)}>
           Set
         </button>
         <button type="button" onClick={onClose}>
@@ -407,7 +425,7 @@ function DurationEditor({ currentMinutes, onApply, onClose }) {
   );
 }
 
-function ItemCard({ item, editable, catalogEntry, onSkip, onUndo, onAddPhoto, photoBusy, onSetDuration }) {
+function ItemCard({ item, editable, catalogEntry, onSkip, onUndo, onAddPhoto, photoBusy, onSetTimeRange }) {
   const isSkipped = item.status === "skipped";
   const fileInputRef = useRef(null);
   const [editingDuration, setEditingDuration] = useState(false);
@@ -419,7 +437,6 @@ function ItemCard({ item, editable, catalogEntry, onSkip, onUndo, onAddPhoto, ph
     transform: CSS.Transform.toString(transform),
     transition,
   };
-  const currentDuration = timeToMinutes(item.end) - timeToMinutes(item.start);
 
   return (
     <div
@@ -453,10 +470,10 @@ function ItemCard({ item, editable, catalogEntry, onSkip, onUndo, onAddPhoto, ph
           {catalogEntry?.windows && (
             <div className="itin-card__hours">Open {formatWindows(catalogEntry.windows)}</div>
           )}
-          {editable && !isSkipped && onSetDuration ? (
+          {editable && !isSkipped && onSetTimeRange ? (
             <button
               type="button"
-              className="itin-card__time itin-card__time--editable"
+              className="itin-card__time-btn"
               onClick={() => setEditingDuration((o) => !o)}
             >
               {formatTime12h(item.start)} – {formatTime12h(item.end)}
@@ -467,10 +484,11 @@ function ItemCard({ item, editable, catalogEntry, onSkip, onUndo, onAddPhoto, ph
             </div>
           )}
           {editingDuration && (
-            <DurationEditor
-              currentMinutes={currentDuration}
-              onApply={(mins) => {
-                onSetDuration(item.id, mins);
+            <TimeRangeEditor
+              currentStart={item.start}
+              currentEnd={item.end}
+              onApply={(from, to) => {
+                onSetTimeRange(item.id, from, to);
                 setEditingDuration(false);
               }}
               onClose={() => setEditingDuration(false)}
@@ -1493,19 +1511,22 @@ export default function Itinerary() {
     return { ok: true };
   }
 
-  // User-set "how long will I spend here" for a real stop, shifting
-  // everything after it to match.
-  function handleSetItemDuration(itemId, minutes) {
+  // User-entered "I'll actually be here from X to Y" for a real stop,
+  // shifting everything after it to match and flagging any later stop that
+  // no longer fits its own real hours as a result.
+  function handleSetItemTimeRange(itemId, newStart, newEnd) {
     const currentDay = itineraryRef.current.days[dayIndex];
     const idx = currentDay.items.findIndex((i) => i.id === itemId);
     if (idx === -1) return;
-    const newItems = applyDurationChange(currentDay.items, idx, minutes);
-    updateDay((d) => ({ ...d, items: newItems }));
+    const shifted = applyTimeRangeChange(currentDay.items, idx, newStart, newEnd);
+    const flagged = flagInfeasibleItems(shifted, currentDay.weekday, placesById, foodById);
+    updateDay((d) => ({ ...d, items: flagged }));
   }
 
   // User-picked transport mode for a travel connector -- recomputes its
   // real duration from the actual distance and that mode's speed, then
-  // shifts everything after it to match.
+  // shifts everything after it to match (and re-checks feasibility, same
+  // as a manual time-range edit does).
   function handleSelectConnectorMode(connectorId, modeKey) {
     const currentDay = itineraryRef.current.days[dayIndex];
     const idx = currentDay.items.findIndex((i) => i.id === connectorId);
@@ -1514,8 +1535,9 @@ export default function Itinerary() {
     if (distanceKm == null) return;
     const minutes = travelMinutesForMode(distanceKm, modeKey);
     const withMode = currentDay.items.map((it, i) => (i === idx ? { ...it, travelMode: modeKey } : it));
-    const newItems = applyDurationChange(withMode, idx, minutes);
-    updateDay((d) => ({ ...d, items: newItems }));
+    const shifted = applyDurationChange(withMode, idx, minutes);
+    const flagged = flagInfeasibleItems(shifted, currentDay.weekday, placesById, foodById);
+    updateDay((d) => ({ ...d, items: flagged }));
   }
 
   function reorderItems(draggedId, targetId) {
@@ -1708,7 +1730,7 @@ export default function Itinerary() {
                   onUndo={() => setItemStatus(item.id, "planned")}
                   onAddPhoto={canEdit ? handleAddPhoto : null}
                   photoBusy={photoBusy}
-                  onSetDuration={canEdit ? handleSetItemDuration : null}
+                  onSetTimeRange={canEdit ? handleSetItemTimeRange : null}
                 />
               )
             )}
