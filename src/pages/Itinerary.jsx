@@ -234,27 +234,6 @@ function moveById(list, draggedId, targetId) {
   return copy;
 }
 
-// When a place doesn't fit because the day is full (not because it's
-// genuinely closed), find the minimum trailing stops that would need to be
-// removed to free up enough time -- since a new place always gets appended
-// at the end, only removing the LAST N active stops actually shifts the
-// anchor earlier; skipping one earlier in the day without also skipping
-// everything after it wouldn't free up trailing time at all. Returns null
-// if the place can't fit even with the whole day cleared (genuinely no
-// window works, e.g. wrong weekday or a window shorter than its duration).
-function computeReleasePlan(dayItems, weekday, place) {
-  const activeItems = dayItems.filter((i) => !CONNECTOR_KINDS.has(i.kind) && i.status !== "skipped");
-  for (let n = 1; n <= activeItems.length; n++) {
-    const remaining = activeItems.slice(0, activeItems.length - n);
-    const lastItem = remaining[remaining.length - 1];
-    const anchor = lastItem ? timeToMinutes(lastItem.end) : 9 * 60;
-    if (earliestStart(place.windows, place.closed_days, weekday, anchor, place.duration_min) !== null) {
-      return { candidates: activeItems.slice(activeItems.length - n), minCount: n };
-    }
-  }
-  return null;
-}
-
 // Coarse buckets for "when in the day" the AI guide asks about, before
 // asking how long, before figuring out what to clear -- matches how a
 // person actually thinks about a day, not raw minute ranges.
@@ -788,7 +767,7 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
                 <strong>{place.name}</strong>
                 <span className="add-place-row__meta">
                   {place.category} · {place.duration_min} min · ★ {place.rating} · {formatWindows(place.windows)}
-                  {!feasible && " · Doesn't fit right now — tap Add to see how to make room"}
+                  {!feasible && " · May be closed at that time — you can still add it"}
                 </span>
               </div>
               <button type="button" onClick={() => onAdd(place)}>
@@ -1286,9 +1265,6 @@ export default function Itinerary() {
   const [places, setPlaces] = useState([]);
   const [food, setFood] = useState([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  // When a place doesn't fit as-is: { place, releasePlan } for the "remove
-  // these N stops to make room" resolver, shown instead of just failing.
-  const [releasePrompt, setReleasePrompt] = useState(null);
   const [message, setMessage] = useState(null);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
   const [changeLog, setChangeLog] = useState(null);
@@ -1442,20 +1418,11 @@ export default function Itinerary() {
     const activeItems = currentDay.items.filter((i) => !CONNECTOR_KINDS.has(i.kind) && i.status !== "skipped");
     const lastItem = activeItems[activeItems.length - 1];
     const start = lastItem ? timeToMinutes(lastItem.end) : 9 * 60;
-    if (earliestStart(place.windows, place.closed_days, currentDay.weekday, start, place.duration_min) === null) {
-      // "Closed at this time" reads as if the place itself has odd hours --
-      // usually it's just that today's schedule has no free slot left, which
-      // is a very different (and fixable) problem. computeReleasePlan finds
-      // exactly which trailing stops would need to go to make room.
-      const releasePlan = computeReleasePlan(currentDay.items, currentDay.weekday, place);
-      return {
-        ok: false,
-        reason: releasePlan
-          ? `${place.name} doesn't fit in today's schedule right now.`
-          : `${place.name} doesn't fit today's schedule, even if every other stop were removed — check its real hours.`,
-        releasePlan,
-      };
-    }
+    // Always add it where it was asked, back-to-back after the day's last
+    // stop — the schedule doesn't get to reject a choice the user made on
+    // purpose. If it lands outside the place's real hours, flag it instead
+    // of blocking, same as a dragged reorder does.
+    const fits = earliestStart(place.windows, place.closed_days, currentDay.weekday, start, place.duration_min) !== null;
     const end = start + place.duration_min;
     const newItem = {
       id: `local_${Date.now()}`,
@@ -1471,29 +1438,20 @@ export default function Itinerary() {
       map_url: `https://www.google.com/maps?q=${place.lat},${place.lng}`,
       locked: false,
       status: "planned",
-      warning: null,
+      warning: fits ? null : `May be closed by then — real hours: ${formatWindows(place.windows)}`,
     };
     updateDay((d) => ({ ...d, items: [...d.items, newItem] }));
-    return { ok: true };
+    return { ok: true, fits };
   }
 
   function handleAddPlace(place) {
     const result = tryAddPlace(place);
-    if (!result.ok) {
-      setMessage(result.reason);
-      if (result.releasePlan) setReleasePrompt({ place, releasePlan: result.releasePlan });
-    }
+    setMessage(
+      result.fits
+        ? `Added ${place.name}!`
+        : `Added ${place.name} — check its flagged time, it may be closed then.`
+    );
     setPickerOpen(false);
-  }
-
-  function confirmReleaseAndAdd() {
-    const { place, releasePlan } = releasePrompt;
-    for (const candidate of releasePlan.candidates) {
-      tryRemovePlace(candidate.id);
-    }
-    const result = tryAddPlace(place);
-    setMessage(result.ok ? `Added ${place.name}!` : result.reason);
-    setReleasePrompt(null);
   }
 
   // Shared by removing/skipping a stop from the UI and the AI guide's
@@ -1787,30 +1745,6 @@ export default function Itinerary() {
               + Add a place
             </button>
           ))}
-
-        {canEdit && releasePrompt && (
-          <div className="release-prompt">
-            <p>
-              <strong>{releasePrompt.place.name}</strong> needs {releasePrompt.place.duration_min} min and doesn't fit
-              as-is. Remove {releasePrompt.releasePlan.minCount === 1 ? "this stop" : `these ${releasePrompt.releasePlan.minCount} stops`} to make room:
-            </p>
-            <div className="release-prompt__candidates">
-              {releasePrompt.releasePlan.candidates.map((c) => (
-                <span key={c.id} className="release-prompt__chip">
-                  {c.title} ({formatTime12h(c.start)}–{formatTime12h(c.end)})
-                </span>
-              ))}
-            </div>
-            <div className="release-prompt__actions">
-              <button type="button" onClick={confirmReleaseAndAdd}>
-                Remove &amp; add {releasePrompt.place.name}
-              </button>
-              <button type="button" onClick={() => setReleasePrompt(null)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );
