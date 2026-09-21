@@ -1399,6 +1399,7 @@ h1, h2, h3 {
 }
 
 .itin-card__time-block {
+  position: relative;
   flex-shrink: 0;
   width: 120px;
   display: flex;
@@ -1456,11 +1457,18 @@ h1, h2, h3 {
 }
 
 .duration-editor {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: max-content;
+  min-width: 240px;
+  z-index: 5;
   margin-top: 8px;
   padding: 10px;
   border: 1px solid #ece2d6;
   border-radius: 8px;
   background: #fbf4ea;
+  box-shadow: 0 4px 14px rgba(58, 46, 38, 0.12);
   font-size: 0.8rem;
 }
 
