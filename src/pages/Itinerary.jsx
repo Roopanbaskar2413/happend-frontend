@@ -574,7 +574,7 @@ function ConnectorRow({ item, distanceKm, editable, onSelectMode }) {
       <div className="itin-connector__content">
         <span className="itin-connector__label">
           {item.title}
-          {distanceKm != null && ` — ${distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`}`}
+          {distanceKm != null && ` — ${distanceKm.toFixed(distanceKm < 1 ? 2 : 1)} km`}
           {item.travelMode && ` · ${formatTime12h(item.start)}–${formatTime12h(item.end)}`}
         </span>
         {editable && distanceKm != null && onSelectMode && (
