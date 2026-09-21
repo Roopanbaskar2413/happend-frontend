@@ -211,6 +211,17 @@ const SEARCH_SYNONYMS = {
   shop: ["shopping", "market", "boutique", "store"],
   turf: ["sports", "cricket", "football"],
   sports: ["turf", "activity"],
+  pub: ["bar", "nightlife", "restobar"],
+  bar: ["pub", "nightlife", "restobar"],
+};
+
+// Prefix matching lets "temp" find "temple", but that same rule makes short,
+// unrelated words collide with longer ones -- "pub" (the drinking kind) is a
+// literal prefix of "public", so it was matching every "Public bathroom" and
+// "Public educational institution" amenity. Listed here per *query word*
+// (not per variant) so it still applies after synonym expansion.
+const SEARCH_PREFIX_EXCLUSIONS = {
+  pub: ["public"],
 };
 
 function expandSearchTerm(word) {
@@ -241,9 +252,12 @@ function matchesSearch(item, queryWords) {
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
-  return queryWords.every((word) =>
-    expandSearchTerm(word).some((variant) => tokens.some((token) => token.startsWith(variant)))
-  );
+  return queryWords.every((word) => {
+    const excluded = SEARCH_PREFIX_EXCLUSIONS[word] ?? [];
+    return expandSearchTerm(word).some((variant) =>
+      tokens.some((token) => token.startsWith(variant) && !excluded.some((bad) => token.startsWith(bad)))
+    );
+  });
 }
 
 function catalogEntryFor(item, placesById, foodById) {
