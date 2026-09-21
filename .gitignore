@@ -5,3 +5,8 @@ dist/
 # Editor / OS
 .DS_Store
 .vscode/
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
