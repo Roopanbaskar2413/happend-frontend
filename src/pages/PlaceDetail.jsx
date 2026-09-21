@@ -182,19 +182,6 @@ export default function PlaceDetail() {
                 </a>
               )}
             </div>
-
-            <p className="place-detail__source">
-              {entry.verified ? "Verified" : "Unverified"} listing
-              {entry.source && (
-                <>
-                  {" "}
-                  ·{" "}
-                  <a href={entry.source} target="_blank" rel="noreferrer">
-                    source
-                  </a>
-                </>
-              )}
-            </p>
           </>
         )}
       </main>
