@@ -45,6 +45,99 @@ function formatWindows(windows) {
     .join(", ");
 }
 
+// A user's personal plan-of-action for a stop, stored as one plain-text
+// string so it round-trips through the itinerary JSON with no schema
+// changes. Lines are parsed lightly at render time: "- " for a bullet,
+// "[ ] "/"[x] " for a checkbox, anything else as a plain sentence.
+function toggleNoteCheckbox(text, lineIndex) {
+  const lines = text.split("\n");
+  const line = lines[lineIndex] ?? "";
+  if (/^\[ \]\s/.test(line)) lines[lineIndex] = line.replace(/^\[ \]/, "[x]");
+  else if (/^\[x\]\s/i.test(line)) lines[lineIndex] = line.replace(/^\[x\]/i, "[ ]");
+  return lines.join("\n");
+}
+
+function NoteView({ text, onToggle }) {
+  const lines = text.split("\n");
+  return (
+    <ul className="itin-card__note-list">
+      {lines.map((line, i) => {
+        if (line.trim() === "") return null;
+        const checkboxMatch = line.match(/^\[( |x|X)\]\s?(.*)$/);
+        if (checkboxMatch) {
+          const checked = checkboxMatch[1].toLowerCase() === "x";
+          return (
+            <li key={i} className="itin-card__note-line itin-card__note-line--checkbox">
+              <label>
+                <input type="checkbox" checked={checked} onChange={() => onToggle(i)} />
+                <span className={checked ? "is-checked" : ""}>{checkboxMatch[2]}</span>
+              </label>
+            </li>
+          );
+        }
+        const bulletMatch = line.match(/^[-*]\s?(.*)$/);
+        if (bulletMatch) {
+          return (
+            <li key={i} className="itin-card__note-line itin-card__note-line--bullet">
+              {bulletMatch[1]}
+            </li>
+          );
+        }
+        return (
+          <li key={i} className="itin-card__note-line">
+            {line}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function NoteEditor({ value, onApply, onClose }) {
+  const [draft, setDraft] = useState(value || "");
+  const textareaRef = useRef(null);
+
+  function insertPrefix(prefix) {
+    const el = textareaRef.current;
+    const pos = el ? el.selectionStart ?? draft.length : draft.length;
+    const before = draft.slice(0, pos);
+    const after = draft.slice(pos);
+    const needsNewline = before.length > 0 && !before.endsWith("\n");
+    const newValue = `${before}${needsNewline ? "\n" : ""}${prefix}${after}`;
+    setDraft(newValue);
+    requestAnimationFrame(() => el?.focus());
+  }
+
+  return (
+    <div className="note-editor">
+      <div className="note-editor__toolbar">
+        <button type="button" onClick={() => insertPrefix("- ")}>
+          + Bullet
+        </button>
+        <button type="button" onClick={() => insertPrefix("[ ] ")}>
+          + Checkbox
+        </button>
+      </div>
+      <textarea
+        ref={textareaRef}
+        className="note-editor__textarea"
+        rows={5}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder={"Plans for this stop…\n- try the ghee roast\n[ ] ask for a window seat"}
+      />
+      <div className="note-editor__actions">
+        <button type="button" className="note-editor__save" onClick={() => onApply(draft)}>
+          Save
+        </button>
+        <button type="button" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function timeToMinutes(hhmm) {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
@@ -527,10 +620,11 @@ function TimeRangeEditor({ currentStart, currentEnd, catalogEntry, weekday, onAp
   );
 }
 
-function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAddPhoto, photoBusy, onSetTimeRange }) {
+function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAddPhoto, photoBusy, onSetTimeRange, onSetNote }) {
   const isSkipped = item.status === "skipped";
   const fileInputRef = useRef(null);
   const [editingDuration, setEditingDuration] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
     disabled: !editable || isSkipped,
@@ -644,7 +738,28 @@ function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAdd
                 Book
               </a>
             )}
+            {onSetNote && !isSkipped && (
+              <button type="button" className="itin-card__note-btn" onClick={() => setEditingNote((o) => !o)}>
+                {item.userNote ? "Edit note" : "+ Note"}
+              </button>
+            )}
           </div>
+          {editingNote && onSetNote && (
+            <NoteEditor
+              value={item.userNote}
+              onApply={(text) => {
+                onSetNote(item.id, text);
+                setEditingNote(false);
+              }}
+              onClose={() => setEditingNote(false)}
+            />
+          )}
+          {!editingNote && item.userNote && (
+            <NoteView
+              text={item.userNote}
+              onToggle={(lineIndex) => onSetNote(item.id, toggleNoteCheckbox(item.userNote, lineIndex))}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -1617,6 +1732,15 @@ export default function Itinerary() {
     updateDay((d) => ({ ...d, items: flagged }));
   }
 
+  // A personal plan-of-action for a stop -- purely informational, so it
+  // just overwrites the one field with no re-timing or feasibility checks.
+  function handleSetItemNote(itemId, noteText) {
+    updateDay((d) => ({
+      ...d,
+      items: d.items.map((i) => (i.id === itemId ? { ...i, userNote: noteText } : i)),
+    }));
+  }
+
   // User-picked transport mode for a travel connector -- recomputes its
   // real duration from the actual distance and that mode's speed, then
   // shifts everything after it to match (and re-checks feasibility, same
@@ -1835,6 +1959,7 @@ export default function Itinerary() {
                   onAddPhoto={canEdit ? handleAddPhoto : null}
                   photoBusy={photoBusy}
                   onSetTimeRange={canEdit ? handleSetItemTimeRange : null}
+                  onSetNote={canEdit ? handleSetItemNote : null}
                 />
               )
             )}

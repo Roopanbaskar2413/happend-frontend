@@ -1588,6 +1588,106 @@ h1, h2, h3 {
   font-weight: 600;
 }
 
+.note-editor {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #ece2d6;
+  border-radius: 8px;
+  background: #fbf4ea;
+}
+
+.note-editor__toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.note-editor__toolbar button {
+  padding: 4px 10px;
+  border: 1px solid #d8cfc4;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.note-editor__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid #d8cfc4;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.note-editor__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.note-editor__actions button {
+  padding: 5px 12px;
+  border: 1px solid #d8cfc4;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.note-editor__save {
+  border-color: #c1502e !important;
+  background: #c1502e !important;
+  color: #fff;
+  font-weight: 600;
+}
+
+.itin-card__note-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.itin-card__note-line {
+  font-size: 0.85rem;
+  color: #4a3d33;
+  line-height: 1.4;
+}
+
+.itin-card__note-line--bullet {
+  padding-left: 14px;
+  position: relative;
+}
+
+.itin-card__note-line--bullet::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #a99a89;
+}
+
+.itin-card__note-line--checkbox label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.itin-card__note-line--checkbox input {
+  margin-top: 3px;
+}
+
+.itin-card__note-line--checkbox .is-checked {
+  text-decoration: line-through;
+  color: #a99a89;
+}
+
 .itin-connector {
   display: flex;
   align-items: flex-start;
