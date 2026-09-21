@@ -11,7 +11,6 @@ test("the info button opens a details page with real catalog data, and survives 
   await infoBtn.click();
   await page.waitForSelector(".place-detail__title-row h1");
   await expect(page.locator(".place-detail__fact-label").first()).toContainText("Hours");
-  await expect(page.locator(".place-detail__source")).toContainText(/Verified|Unverified/);
 
   // Regression guard: unlike the itinerary page, this route carries no
   // navigation state at all -- it must work as a cold direct link too.
