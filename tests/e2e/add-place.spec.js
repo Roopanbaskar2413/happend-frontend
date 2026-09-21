@@ -19,6 +19,31 @@ test.describe("Add a place panel", () => {
     await expect(page.locator(".release-prompt")).toHaveCount(0);
   });
 
+  test("gives the newly added place a real travel connector, not a dangling stop", async ({ page }) => {
+    await generatePlan(page);
+    const lastCardBefore = page.locator(".itin-card").last();
+    const titleBefore = await lastCardBefore.locator("h3").textContent();
+
+    await page.click(".add-place-trigger");
+    await page.waitForSelector(".add-place-panel");
+    await page.fill(".add-place-panel__search", "rental bicycle");
+    await page.waitForTimeout(150);
+    await page.locator(".add-place-row").first().locator("button", { hasText: "Add" }).click();
+    await page.waitForTimeout(300); // the panel closes itself once the add goes through
+
+    // Regression guard: a place added this way used to just get appended
+    // with no travel connector leading into it at all -- no distance, no
+    // mode picker, same bug already fixed for drag-reorder and skip/undo.
+    const cards = page.locator(".itin-card");
+    const newCard = cards.last();
+    await expect(newCard.locator("h3")).toContainText("Rental Bicycle");
+    expect(await cards.nth(-2).locator("h3").textContent()).toBe(titleBefore);
+
+    const connectorBeforeNewStop = page.locator(".itin-connector").last();
+    await expect(connectorBeforeNewStop).toContainText(/\d+(\.\d+)?\s*km/);
+    await expect(connectorBeforeNewStop.locator(".itin-connector__mode-chip")).toHaveCount(4);
+  });
+
   test("searches by meaning, not literal spelling", async ({ page }) => {
     await generatePlan(page);
     await page.click(".add-place-trigger");

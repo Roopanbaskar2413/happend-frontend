@@ -565,7 +565,7 @@ function computeSegmentRemovalPlan(dayItems, weekday, place, segmentRange, durat
 // a real (if local) re-flow, not just an append. Travel connectors are
 // dropped throughout, same trade-off drag-reorder already makes: they no
 // longer describe the new adjacency and aren't recalculated here.
-function buildInsertedDayItems(dayItems, candidates, place, newStart, newEnd) {
+function buildInsertedDayItems(dayItems, candidates, place, newStart, newEnd, placesById, foodById) {
   const candidateIds = new Set(candidates.map((c) => c.id));
   const removedEnd = timeToMinutes(candidates[candidates.length - 1].end);
   const delta = newEnd - removedEnd;
@@ -610,7 +610,10 @@ function buildInsertedDayItems(dayItems, candidates, place, newStart, newEnd) {
     }
   }
   if (!inserted) result.push(newItem);
-  return result;
+  // Rebuild connectors across the new adjacency -- the removed stops and
+  // the shifted-in place both change who's next to whom, so the old
+  // connectors no longer describe real pairs.
+  return withRebuiltConnectors(result, placesById, foodById);
 }
 
 // Explicit "from this time to this time" entry instead of just a duration —
@@ -1726,7 +1729,13 @@ export default function Itinerary() {
       status: "planned",
       warning: fits ? null : `May be closed by then — real hours: ${formatWindows(place.windows)}`,
     };
-    updateDay((d) => ({ ...d, items: [...d.items, newItem] }));
+    // Rebuild connectors across the whole day rather than just appending
+    // the new item -- otherwise the new stop has no travel connector (real
+    // distance, mode picker) leading into it at all.
+    updateDay((d) => {
+      const realItems = d.items.filter((i) => !CONNECTOR_KINDS.has(i.kind));
+      return { ...d, items: withRebuiltConnectors([...realItems, newItem], placesById, foodById) };
+    });
     return { ok: true, fits };
   }
 
@@ -1773,7 +1782,7 @@ export default function Itinerary() {
   // whatever follows earlier by the leftover gap.
   function tryInsertPlace(place, candidates, newStart, newEnd) {
     const currentDay = itineraryRef.current.days[dayIndex];
-    const newItems = buildInsertedDayItems(currentDay.items, candidates, place, newStart, newEnd);
+    const newItems = buildInsertedDayItems(currentDay.items, candidates, place, newStart, newEnd, placesById, foodById);
     updateDay((d) => ({ ...d, items: newItems }));
     return { ok: true };
   }
