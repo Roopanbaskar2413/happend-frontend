@@ -805,7 +805,7 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
             earliestStart(place.windows, place.closed_days, weekday, anchorMinutes, place.duration_min) !==
             null;
           return (
-            <div key={place.id} className={`add-place-row${feasible ? "" : " add-place-row--closed"}`}>
+            <div key={place.id} className="add-place-row">
               <div>
                 <strong>{place.name}</strong>
                 <span className="add-place-row__meta">

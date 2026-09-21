@@ -1840,21 +1840,6 @@ h1, h2, h3 {
   cursor: pointer;
 }
 
-.add-place-row--closed {
-  opacity: 0.75;
-}
-
-.add-place-row--closed strong,
-.add-place-row--closed .add-place-row__meta {
-  opacity: 0.7;
-}
-
-.add-place-row--closed button {
-  background: #fff;
-  border: 1px solid #c1502e;
-  color: #c1502e;
-}
-
 .itin-header__actions {
   margin-left: auto;
   display: flex;
