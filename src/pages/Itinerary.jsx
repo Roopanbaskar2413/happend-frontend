@@ -14,6 +14,7 @@ import { replan as replanApi } from "../api/replan.js";
 import { updateSavedPlan } from "../api/savedPlans.js";
 import { createMemory, uploadPhoto } from "../api/memories.js";
 import { chatWithGuide } from "../api/guide.js";
+import { formatTime12h, formatWindows } from "../utils/time.js";
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const CONNECTOR_KINDS = new Set(["travel", "transfer"]);
@@ -52,27 +53,6 @@ const REAL_KINDS_MESSAGE_TIMEOUT = 3500;
 function formatDate(iso) {
   const d = new Date(`${iso}T00:00:00`);
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-// Data stays in 24h "HH:MM" throughout (sorting, arithmetic, the API contract) —
-// only the on-screen label switches to a normal 12-hour clock.
-function formatTime12h(hhmm) {
-  const [h, m] = hhmm.split(":").map(Number);
-  const period = h >= 12 ? "PM" : "AM";
-  const hour12 = h % 12 === 0 ? 12 : h % 12;
-  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
-}
-
-// "10:00-18:00" -> "10:00 AM–6:00 PM"; multiple windows (e.g. a lunch/dinner
-// split) join with a comma so the user can see exactly when a place is
-// actually open, not just guess from a single "Closed at this time" tag.
-function formatWindows(windows) {
-  return (windows || [])
-    .map((w) => {
-      const [start, end] = w.split("-");
-      return `${formatTime12h(start)}–${formatTime12h(end)}`;
-    })
-    .join(", ");
 }
 
 // A user's personal plan-of-action for a stop, stored as one plain-text
@@ -662,7 +642,7 @@ function TimeRangeEditor({ currentStart, currentEnd, catalogEntry, weekday, onAp
   );
 }
 
-function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAddPhoto, photoBusy, onSetTimeRange, onSetNote }) {
+function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAddPhoto, photoBusy, onSetTimeRange, onSetNote, city }) {
   const isSkipped = item.status === "skipped";
   const fileInputRef = useRef(null);
   const [editingDuration, setEditingDuration] = useState(false);
@@ -682,6 +662,16 @@ function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAdd
       style={style}
       className={`itin-card itin-card--${item.kind}${isDragging ? " is-dragging" : ""}`}
     >
+      {item.ref_id && (
+        <Link
+          to={`/place/${city}/${item.kind}/${item.ref_id}`}
+          className="itin-card__info-btn"
+          aria-label={`View details for ${item.title}`}
+          title="View details"
+        >
+          i
+        </Link>
+      )}
       {editable && !isSkipped && (
         <span className="itin-card__drag-handle" title="Drag to reorder" {...attributes} {...listeners}>
           ⋮⋮
@@ -2027,6 +2017,7 @@ export default function Itinerary() {
                   photoBusy={photoBusy}
                   onSetTimeRange={canEdit ? handleSetItemTimeRange : null}
                   onSetNote={canEdit ? handleSetItemNote : null}
+                  city={city}
                 />
               )
             )}

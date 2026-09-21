@@ -1783,6 +1783,32 @@ h1, h2, h3 {
   cursor: pointer;
 }
 
+.itin-card__info-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #e0d4c5;
+  background: #fff;
+  color: #a99a89;
+  font-size: 0.82rem;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.itin-card__info-btn:hover {
+  background: #fdf1de;
+  border-color: #c1502e;
+  color: #c1502e;
+}
+
 .add-place-trigger {
   margin: 14px 0 0;
   padding: 12px;
@@ -2838,4 +2864,105 @@ h1, h2, h3 {
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.place-detail__back {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #c1502e;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+
+.place-detail__empty {
+  color: #6b5d52;
+}
+
+.place-detail__title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.place-detail__title-row h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.7rem;
+  margin: 0;
+}
+
+.place-detail__rating {
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  color: #6b5d52;
+}
+
+.place-detail__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.place-detail__badge {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid #d8cfc4;
+  font-size: 0.78rem;
+  color: #4a3d33;
+  text-transform: capitalize;
+}
+
+.place-detail__notes {
+  margin: 16px 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #3a2e26;
+}
+
+.place-detail__facts {
+  margin-top: 24px;
+  border-top: 1px solid #ece2d6;
+  padding-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.place-detail__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.place-detail__fact-label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #a99a89;
+}
+
+.place-detail__links {
+  display: flex;
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.place-detail__links a {
+  color: #c1502e;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.place-detail__source {
+  margin-top: 24px;
+  font-size: 0.78rem;
+  color: #a99a89;
+}
+
+.place-detail__source a {
+  color: #a99a89;
 }
