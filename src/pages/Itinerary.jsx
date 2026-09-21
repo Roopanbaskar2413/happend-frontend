@@ -17,6 +17,36 @@ import { chatWithGuide } from "../api/guide.js";
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const CONNECTOR_KINDS = new Set(["travel", "transfer"]);
+
+// React Router's navigation `state` (where the itinerary actually lives)
+// only reliably survives as long as the page stays mounted -- a hard
+// reload re-runs the whole app from scratch and there's no guarantee the
+// browser hands it back. This is a same-tab safety net so a reload (or an
+// accidental back/forward) doesn't wipe out edits that were never saved to
+// the server: every change gets mirrored into sessionStorage, and a fresh
+// mount falls back to it when there's no navigation state to read from.
+// It intentionally does NOT replace the real "Save changes"/"Looks good"
+// flow -- this only survives within the same browser tab session, not a
+// closed tab, a different device, or a shared link.
+const ITINERARY_DRAFT_KEY = "happend:itinerary-draft";
+
+function loadCachedItinerary() {
+  try {
+    const raw = sessionStorage.getItem(ITINERARY_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedItinerary(snapshot) {
+  try {
+    sessionStorage.setItem(ITINERARY_DRAFT_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Storage full or unavailable (private browsing, etc.) -- caching is a
+    // convenience, never worth blocking or erroring the actual edit over.
+  }
+}
 const REAL_KINDS_MESSAGE_TIMEOUT = 3500;
 
 function formatDate(iso) {
@@ -1478,7 +1508,18 @@ function GuideChat({
 export default function Itinerary() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [itinerary, setItinerary] = useState(location.state?.itinerary ?? null);
+  // A reload re-runs `navigate`'s ORIGINAL `state` object too -- the
+  // browser hands back the history entry's state as it was at the moment
+  // of navigation, not anything edited into component state afterward. So
+  // `location.state.itinerary` being present doesn't mean it's fresh; it
+  // could be the pre-edit snapshot from before a reload wiped out React's
+  // in-memory state. `location.key` is stable across a reload of the same
+  // entry but changes on every real new navigation, so it's what actually
+  // distinguishes "this is a reload" from "this is a new page load" --
+  // only in the reload case does the (fresher) session cache win.
+  const cachedRef = useRef(loadCachedItinerary());
+  const cached = cachedRef.current?.navKey === location.key ? cachedRef.current : null;
+  const [itinerary, setItinerary] = useState(cached?.itinerary ?? location.state?.itinerary ?? null);
   // Mirrors `itinerary` synchronously (updated the instant updateDay runs,
   // not after React flushes a re-render). The AI guide can make several
   // add/remove/reorder calls back-to-back within one conversational turn;
@@ -1486,11 +1527,11 @@ export default function Itinerary() {
   // means each call sees the true latest state even if the ones before it
   // haven't been reflected in a re-render yet.
   const itineraryRef = useRef(itinerary);
-  const city = location.state?.city ?? "pondicherry";
-  const planRequest = location.state?.planRequest;
-  const planId = location.state?.planId ?? null;
+  const city = cached?.city ?? location.state?.city ?? "pondicherry";
+  const planRequest = cached?.planRequest ?? location.state?.planRequest;
+  const planId = cached?.planId ?? location.state?.planId ?? null;
   // A freshly generated, not-yet-saved plan has no planId and is always editable.
-  const canEdit = location.state?.canEdit ?? true;
+  const canEdit = cached?.canEdit ?? location.state?.canEdit ?? true;
   const [dayIndex, setDayIndex] = useState(0);
   const [places, setPlaces] = useState([]);
   const [food, setFood] = useState([]);
@@ -1531,6 +1572,14 @@ export default function Itinerary() {
   useEffect(() => {
     itineraryRef.current = itinerary;
   }, [itinerary]);
+
+  // Mirrors every edit into the same-tab draft cache described above, so a
+  // reload picks back up where the user left off instead of losing
+  // whatever hasn't been saved to the server yet.
+  useEffect(() => {
+    if (!itinerary) return;
+    saveCachedItinerary({ navKey: location.key, itinerary, city, planRequest, planId, canEdit });
+  }, [itinerary, city, planRequest, planId, canEdit, location.key]);
 
   useEffect(() => {
     if (!message) return;
