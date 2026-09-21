@@ -191,11 +191,14 @@ function earliestStart(windows, closedDays, weekday, arriveMinutes, durationMinu
 
 // Re-times a reordered list of items back-to-back from `anchorMinutes`,
 // respecting each item's real opening hours (with the same wait tolerance the
-// engine uses). Returns { ok: false, reason } on the first infeasible item,
-// leaving the caller to reject the whole reorder rather than apply it partially.
+// engine uses) where that's possible. A drag-and-drop is a "let me just try
+// this order" gesture, not a commitment the user should have to defend --
+// so an item that doesn't cleanly fit is never blocked, just placed
+// back-to-back anyway and flagged with a warning the user can act on.
 function recomputeWithFeasibility(items, weekday, placesById, foodById, anchorMinutes) {
   let cursor = anchorMinutes;
   const result = [];
+  let allFit = true;
   for (const item of items) {
     const duration = timeToMinutes(item.end) - timeToMinutes(item.start);
     const catalogEntry =
@@ -209,15 +212,16 @@ function recomputeWithFeasibility(items, weekday, placesById, foodById, anchorMi
       continue;
     }
 
-    const start = earliestStart(catalogEntry.windows, catalogEntry.closed_days, weekday, cursor, duration);
-    if (start === null) {
-      return { ok: false, reason: `${item.title} isn't open at that time.` };
-    }
+    const fitStart = earliestStart(catalogEntry.windows, catalogEntry.closed_days, weekday, cursor, duration);
+    const start = fitStart === null ? cursor : fitStart;
     const end = start + duration;
-    result.push({ ...item, start: minutesToTime(start), end: minutesToTime(end) });
+    const warning =
+      fitStart === null ? `May be closed by then — real hours: ${formatWindows(catalogEntry.windows)}` : null;
+    if (warning) allFit = false;
+    result.push({ ...item, start: minutesToTime(start), end: minutesToTime(end), warning });
     cursor = end;
   }
-  return { ok: true, items: result };
+  return { ok: true, items: result, allFit };
 }
 
 function moveById(list, draggedId, targetId) {
@@ -1512,13 +1516,11 @@ export default function Itinerary() {
     const reordered = moveById(realItems, draggedId, targetId);
     const result = recomputeWithFeasibility(reordered, currentDay.weekday, placesById, foodById, anchor);
 
-    if (!result.ok) return { ok: false, reason: result.reason };
-
     // Reordering only makes sense for the "real" stops — old travel connectors
     // no longer describe the new adjacency, so they're dropped (same trade-off
     // "Add a place" already makes: no travel-time recalculation without re-flow).
     updateDay((d) => ({ ...d, items: result.items }));
-    return { ok: true };
+    return { ok: true, allFit: result.allFit };
   }
 
   // Used by the AI guide's segment/duration "make room" flow: replaces the
@@ -1562,7 +1564,15 @@ export default function Itinerary() {
 
   function reorderItems(draggedId, targetId) {
     const result = tryReorderBefore(draggedId, targetId);
-    if (!result.ok) setMessage(result.reason); // reject the whole reorder, leave the day untouched
+    if (!result.ok) {
+      setMessage(result.reason);
+      return;
+    }
+    setMessage(
+      result.allFit
+        ? "Reordered — we can go at that time."
+        : "Reordered — check the flagged stop below, it may not fit that time."
+    );
   }
 
   function handleDragEnd(event) {
