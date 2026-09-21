@@ -220,18 +220,24 @@ function segmentsForPlace(place, weekday) {
 // time within it).
 function computeSegmentRemovalPlan(dayItems, weekday, place, segmentRange, duration) {
   const realItems = dayItems.filter((i) => !CONNECTOR_KINDS.has(i.kind) && i.status !== "skipped");
-  const segIndices = realItems
+  // The segment is where the user wants to START, not a hard ceiling on how
+  // much time can be freed -- a longer visit is allowed to run into later
+  // segments too (e.g. "morning" spilling into early afternoon), as long as
+  // the place is still genuinely open by real hours at that point. Only
+  // stops ending at/after the segment start are candidates; nothing earlier
+  // in the day is touched.
+  const candidateIdxs = realItems
     .map((it, idx) => ({ it, idx }))
-    .filter(({ it }) => rangesOverlap(timeToMinutes(it.start), timeToMinutes(it.end), segmentRange[0], segmentRange[1]))
+    .filter(({ it }) => timeToMinutes(it.end) > segmentRange[0])
     .map(({ idx }) => idx);
 
-  for (let runLen = 1; runLen <= segIndices.length; runLen++) {
-    for (let i = 0; i + runLen <= segIndices.length; i++) {
-      const runIdxs = segIndices.slice(i, i + runLen);
+  for (let runLen = 1; runLen <= candidateIdxs.length; runLen++) {
+    for (let i = 0; i + runLen <= candidateIdxs.length; i++) {
+      const runIdxs = candidateIdxs.slice(i, i + runLen);
       const first = realItems[runIdxs[0]];
       const last = realItems[runIdxs[runIdxs.length - 1]];
       const freedStart = Math.max(timeToMinutes(first.start), segmentRange[0]);
-      const freedEnd = Math.min(timeToMinutes(last.end), segmentRange[1]);
+      const freedEnd = timeToMinutes(last.end);
       if (freedEnd - freedStart < duration) continue;
       const start = earliestStart(place.windows, place.closed_days, weekday, freedStart, duration);
       if (start !== null && start + duration <= freedEnd) {
