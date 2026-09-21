@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getFood, getPlaces } from "../api/places.js";
+import { getAmenities, getFood, getPlaces } from "../api/places.js";
 import { formatWindows, WEEKDAY_NAMES } from "../utils/time.js";
 
 const GROUP_LABELS = { solo: "Solo", couple: "Couple", family: "Family", friends: "Friends" };
@@ -26,9 +26,31 @@ export default function PlaceDetail() {
 
   useEffect(() => {
     setEntry(undefined);
+    setError(null);
     const fetcher = kind === "meal" ? getFood : getPlaces;
     fetcher(city)
-      .then((rows) => setEntry(rows.find((r) => r.id === id) ?? null))
+      .then((rows) => {
+        const found = rows.find((r) => r.id === id);
+        if (found) {
+          setEntry(found);
+          return;
+        }
+        // Not every real "place" the itinerary can add is in the curated
+        // catalog -- amenities (gas stations, schools, ...) get scheduled
+        // through the same UI, see amenityAsPlace() in Itinerary.jsx, but
+        // live in a separate, unscheduled dataset. Check there before
+        // giving up.
+        if (kind !== "place") {
+          setEntry(null);
+          return;
+        }
+        getAmenities(city)
+          .then((amenities) => {
+            const amenity = amenities.find((a) => a.id === id);
+            setEntry(amenity ? { ...amenity, is_amenity: true, category: amenity.raw_category } : null);
+          })
+          .catch((err) => setError(err.message));
+      })
       .catch((err) => setError(err.message));
   }, [city, kind, id]);
 
@@ -80,11 +102,19 @@ export default function PlaceDetail() {
             {entry.notes && <p className="place-detail__notes">{entry.notes}</p>}
 
             <div className="place-detail__facts">
-              <div className="place-detail__fact">
-                <span className="place-detail__fact-label">Hours</span>
-                <span>{formatWindows(entry.windows)}</span>
-              </div>
-              {entry.closed_days?.length > 0 && (
+              {!entry.is_amenity && (
+                <div className="place-detail__fact">
+                  <span className="place-detail__fact-label">Hours</span>
+                  <span>{formatWindows(entry.windows)}</span>
+                </div>
+              )}
+              {entry.is_amenity && entry.phone && (
+                <div className="place-detail__fact">
+                  <span className="place-detail__fact-label">Phone</span>
+                  <span>{entry.phone}</span>
+                </div>
+              )}
+              {!entry.is_amenity && entry.closed_days?.length > 0 && (
                 <div className="place-detail__fact">
                   <span className="place-detail__fact-label">Closed on</span>
                   <span>{entry.closed_days.map((d) => WEEKDAY_NAMES[d]).join(", ")}</span>
@@ -96,10 +126,12 @@ export default function PlaceDetail() {
                   <span>{entry.duration_min} min</span>
                 </div>
               )}
-              <div className="place-detail__fact">
-                <span className="place-detail__fact-label">Cost</span>
-                <span>{entry.cost_pp > 0 ? `₹${entry.cost_pp} per person` : "Free"}</span>
-              </div>
+              {!entry.is_amenity && (
+                <div className="place-detail__fact">
+                  <span className="place-detail__fact-label">Cost</span>
+                  <span>{entry.cost_pp > 0 ? `₹${entry.cost_pp} per person` : "Free"}</span>
+                </div>
+              )}
               {entry.area && (
                 <div className="place-detail__fact">
                   <span className="place-detail__fact-label">Area</span>

@@ -19,3 +19,13 @@ export async function getFood(city = "pondicherry") {
   }
   return res.json();
 }
+
+export async function getAmenities(city = "pondicherry") {
+  const res = await fetch(`${BASE_URL}/amenities?city=${encodeURIComponent(city)}`, {
+    credentials: "include",
+  });
+  if (!res.ok) {
+    throw new Error(`GET /amenities failed: ${res.status}`);
+  }
+  return res.json();
+}

@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { getFood, getPlaces } from "../api/places.js";
+import { getAmenities, getFood, getPlaces } from "../api/places.js";
 import { replan as replanApi } from "../api/replan.js";
 import { updateSavedPlan } from "../api/savedPlans.js";
 import { createMemory, uploadPhoto } from "../api/memories.js";
@@ -695,7 +695,7 @@ function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAdd
         ))}
       <div className={`itin-card__content${isSkipped ? " is-fading" : ""}`}>
         <div className="itin-card__time-block">
-          {catalogEntry?.windows && (
+          {catalogEntry?.windows && !catalogEntry.is_amenity && (
             <div className="itin-card__hours">Open {formatWindows(catalogEntry.windows)}</div>
           )}
           {editable && !isSkipped && onSetTimeRange ? (
@@ -962,6 +962,31 @@ function ReflowBar({ realItems, busy, onApply }) {
   );
 }
 
+// Amenities (gas stations, schools, shops, ...) have no real visit duration
+// or opening hours -- they're general POIs, not itinerary stops. Giving them
+// an always-open window and a short placeholder duration lets them flow
+// through the same scheduling code as a real place (earliestStart etc. never
+// reject them), while `is_amenity` tells the UI to hide that made-up
+// duration/hours instead of presenting it as real data.
+function amenityAsPlace(a) {
+  return {
+    ...a,
+    kind: "place",
+    is_amenity: true,
+    category: a.raw_category || "amenity",
+    duration_min: 15,
+    windows: ["00:00-23:59"],
+    closed_days: [],
+    interests: [],
+    group_fit: ["solo", "couple", "family", "friends"],
+    best_slots: [],
+    weather_dependent: false,
+    indoor: false,
+    heat_exposed: false,
+    cost_pp: 0,
+  };
+}
+
 function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, onClose }) {
   const [query, setQuery] = useState("");
   // Places and restaurants/bars are both real catalog entries the user can
@@ -1015,8 +1040,10 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
               <div>
                 <strong>{place.name}</strong>
                 <span className="add-place-row__meta">
-                  {place.category} · {place.duration_min} min · ★ {place.rating} · {formatWindows(place.windows)}
-                  {!feasible && " · May be closed at that time — you can still add it"}
+                  {place.is_amenity
+                    ? `${place.category}${place.rating ? ` · ★ ${place.rating}` : ""}`
+                    : `${place.category} · ${place.duration_min} min · ★ ${place.rating} · ${formatWindows(place.windows)}`}
+                  {!place.is_amenity && !feasible && " · May be closed at that time — you can still add it"}
                   {alreadyAdded && " · Already in today's plan — add again for a second visit (e.g. returning a rental)"}
                 </span>
                 {place.kind === "meal" && place.notes && (
@@ -1528,6 +1555,7 @@ export default function Itinerary() {
   const [dayIndex, setDayIndex] = useState(0);
   const [places, setPlaces] = useState([]);
   const [food, setFood] = useState([]);
+  const [amenities, setAmenities] = useState([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [message, setMessage] = useState(null);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
@@ -1546,7 +1574,8 @@ export default function Itinerary() {
 
   const day = itinerary?.days?.[dayIndex] ?? null;
   const realItems = day ? day.items.filter((i) => !CONNECTOR_KINDS.has(i.kind)) : [];
-  const placesById = Object.fromEntries(places.map((p) => [p.id, { ...p, kind: "place" }]));
+  const placesWithAmenities = [...places, ...amenities.map(amenityAsPlace)];
+  const placesById = Object.fromEntries(placesWithAmenities.map((p) => [p.id, { ...p, kind: "place" }]));
   const foodById = Object.fromEntries(food.map((f) => [f.id, { ...f, kind: "meal" }]));
   const now = new Date();
   const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
@@ -1557,6 +1586,7 @@ export default function Itinerary() {
   useEffect(() => {
     getPlaces(city).then(setPlaces).catch(() => {});
     getFood(city).then(setFood).catch(() => {});
+    getAmenities(city).then(setAmenities).catch(() => {});
   }, [city]);
 
   // Safety net for setItinerary calls outside updateDay (initial load,
@@ -2027,7 +2057,7 @@ export default function Itinerary() {
         {canEdit &&
           (pickerOpen ? (
             <AddPlacePanel
-              places={places}
+              places={placesWithAmenities}
               food={food}
               usedIds={usedPlaceIds}
               weekday={day.weekday}
