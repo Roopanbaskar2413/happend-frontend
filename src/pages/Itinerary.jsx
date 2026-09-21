@@ -224,6 +224,39 @@ function recomputeWithFeasibility(items, weekday, placesById, foodById, anchorMi
   return { ok: true, items: result, allFit };
 }
 
+// Rebuilds the travel connectors between a freshly reordered/re-timed list
+// of real stops. A reorder invalidates every old connector's adjacency (it
+// described the PREVIOUS pair of neighbors, not these), but the rest of the
+// itinerary still expects one between every pair of real stops -- both for
+// the distance/mode picker UI and for later edits (e.g. picking a mode)
+// that assume it's there. No travel time is allocated into the schedule
+// here (that still needs live re-flow); it starts as a zero-length
+// placeholder the user can expand by picking a transport mode.
+function withRebuiltConnectors(realItems, placesById, foodById) {
+  const result = [];
+  realItems.forEach((item, i) => {
+    if (i > 0) {
+      const prev = realItems[i - 1];
+      const prevEntry = catalogEntryFor(prev, placesById, foodById);
+      const nextEntry = catalogEntryFor(item, placesById, foodById);
+      if (prevEntry && nextEntry) {
+        result.push({
+          id: `travel_local_${Date.now()}_${i}`,
+          start: prev.end,
+          end: prev.end,
+          kind: "travel",
+          ref_id: null,
+          title: `Travel to ${item.title}`,
+          area: null,
+          cost_pp: 0,
+        });
+      }
+    }
+    result.push(item);
+  });
+  return result;
+}
+
 function moveById(list, draggedId, targetId) {
   const fromIndex = list.findIndex((i) => i.id === draggedId);
   const toIndex = list.findIndex((i) => i.id === targetId);
@@ -1474,10 +1507,11 @@ export default function Itinerary() {
     const reordered = moveById(realItems, draggedId, targetId);
     const result = recomputeWithFeasibility(reordered, currentDay.weekday, placesById, foodById, anchor);
 
-    // Reordering only makes sense for the "real" stops — old travel connectors
-    // no longer describe the new adjacency, so they're dropped (same trade-off
-    // "Add a place" already makes: no travel-time recalculation without re-flow).
-    updateDay((d) => ({ ...d, items: result.items }));
+    // Old travel connectors described the previous adjacency, not this one —
+    // rebuild a fresh one between every pair of real stops so the
+    // distance/mode picker still shows up after a reorder.
+    const withConnectors = withRebuiltConnectors(result.items, placesById, foodById);
+    updateDay((d) => ({ ...d, items: withConnectors }));
     return { ok: true, allFit: result.allFit };
   }
 
