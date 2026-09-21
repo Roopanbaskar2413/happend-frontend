@@ -52,6 +52,15 @@ export default function PlaceDetail() {
 
         {entry && (
           <>
+            <div className="place-detail__hero">
+              <iframe
+                title={`Map showing ${entry.name}`}
+                src={`https://www.google.com/maps?q=${entry.lat},${entry.lng}&z=16&output=embed`}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+
             <div className="place-detail__title-row">
               <h1>{entry.name}</h1>
               <span className="place-detail__rating">★ {entry.rating}</span>

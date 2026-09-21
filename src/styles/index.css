@@ -2966,3 +2966,20 @@ h1, h2, h3 {
 .place-detail__source a {
   color: #a99a89;
 }
+
+.place-detail__hero {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ece2d6;
+}
+
+.place-detail__hero iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
