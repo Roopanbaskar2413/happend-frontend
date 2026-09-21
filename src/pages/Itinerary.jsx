@@ -592,17 +592,18 @@ function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAdd
   );
 }
 
-function ConnectorRow({ item, distanceKm, editable, onSelectMode }) {
+function ConnectorRow({ item, distanceKm, editable, onSelectMode, faded }) {
   return (
-    <div className="itin-connector">
+    <div className={`itin-connector${faded ? " itin-connector--faded" : ""}`}>
       <span className="itin-connector__line" />
       <div className="itin-connector__content">
         <span className="itin-connector__label">
           {item.title}
           {distanceKm != null && ` — ${distanceKm.toFixed(distanceKm < 1 ? 2 : 1)} km`}
           {item.travelMode && ` · ${formatTime12h(item.start)}–${formatTime12h(item.end)}`}
+          {faded && " · not needed, that stop is skipped"}
         </span>
-        {editable && distanceKm != null && onSelectMode && (
+        {editable && !faded && distanceKm != null && onSelectMode && (
           <div className="itin-connector__modes">
             {TRANSPORT_MODES.map((mode) => (
               <button
@@ -1757,6 +1758,7 @@ export default function Itinerary() {
                   editable={canEdit}
                   distanceKm={connectorDistanceKm(day.items, idx, placesById, foodById)}
                   onSelectMode={canEdit ? handleSelectConnectorMode : null}
+                  faded={day.items[idx + 1]?.status === "skipped"}
                 />
               ) : (
                 <ItemCard

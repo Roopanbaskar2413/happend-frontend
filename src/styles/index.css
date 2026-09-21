@@ -1595,6 +1595,11 @@ h1, h2, h3 {
   padding: 4px 16px;
   color: #a99a89;
   font-size: 0.78rem;
+  transition: opacity 0.25s ease;
+}
+
+.itin-connector--faded {
+  opacity: 0.4;
 }
 
 .itin-connector__line {
