@@ -58,6 +58,59 @@ function minutesToTime(minutes) {
 const MAX_WAIT_MINUTES = 45;
 const VISIT_RADIUS_METERS = 150;
 
+// Rough city-travel speeds (km/h) per mode, plus a small fixed buffer for
+// waiting/parking/etc. Straight-line distance is inflated by the same 1.3x
+// detour factor the backend planner uses, so estimates stay in the same
+// ballpark as the auto-generated schedule instead of two different systems
+// disagreeing with each other.
+const TRANSPORT_MODES = [
+  { key: "walk", label: "Walk", speedKmh: 4.5, bufferMin: 3 },
+  { key: "cycle", label: "Cycle", speedKmh: 12, bufferMin: 4 },
+  { key: "auto", label: "Auto", speedKmh: 22, bufferMin: 8 },
+  { key: "bike", label: "Bike", speedKmh: 28, bufferMin: 6 },
+];
+
+function travelMinutesForMode(distanceKm, modeKey) {
+  const mode = TRANSPORT_MODES.find((m) => m.key === modeKey) ?? TRANSPORT_MODES[2];
+  return Math.max(1, Math.round(((distanceKm * 1.3) / mode.speedKmh) * 60 + mode.bufferMin));
+}
+
+function catalogEntryFor(item, placesById, foodById) {
+  if (item.kind === "place") return placesById[item.ref_id];
+  if (item.kind === "meal") return foodById[item.ref_id];
+  return null;
+}
+
+// A travel connector's distance comes from whichever real stops sit right
+// before and after it in the array -- always exactly one of each, since the
+// generator alternates real/travel items.
+function connectorDistanceKm(dayItems, idx, placesById, foodById) {
+  const prevEntry = catalogEntryFor(dayItems[idx - 1] ?? {}, placesById, foodById);
+  const nextEntry = catalogEntryFor(dayItems[idx + 1] ?? {}, placesById, foodById);
+  if (!prevEntry || !nextEntry) return null;
+  return haversineMeters(prevEntry.lat, prevEntry.lng, nextEntry.lat, nextEntry.lng) / 1000;
+}
+
+// Changes one item's duration in place and shifts every item after it by
+// the same delta, keeping the rest of the day's relative timing intact --
+// used both for a stop's "how long will you spend here" edit and a
+// connector's travel-mode change.
+function applyDurationChange(items, idx, newDurationMinutes) {
+  const item = items[idx];
+  const oldDuration = timeToMinutes(item.end) - timeToMinutes(item.start);
+  const delta = newDurationMinutes - oldDuration;
+  if (delta === 0) return items;
+  return items.map((it, i) => {
+    if (i < idx) return it;
+    if (i === idx) return { ...it, end: minutesToTime(timeToMinutes(it.start) + newDurationMinutes) };
+    return {
+      ...it,
+      start: minutesToTime(timeToMinutes(it.start) + delta),
+      end: minutesToTime(timeToMinutes(it.end) + delta),
+    };
+  });
+}
+
 // Distance between two lat/lng points, in meters. Used to auto-confirm a
 // stop as visited when the phone's live GPS position is close enough to the
 // place's known coordinates — not just "the plan says so."
@@ -301,9 +354,63 @@ function buildInsertedDayItems(dayItems, candidates, place, newStart, newEnd) {
   return result;
 }
 
-function ItemCard({ item, editable, onSkip, onUndo, onAddPhoto, photoBusy }) {
+const SPEND_DURATION_OPTIONS_MIN = [30, 60, 90, 120, 180];
+
+function formatDurationLabel(mins) {
+  return mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(mins % 60 === 0 ? 0 : 1)} hr`;
+}
+
+// Bubbles + a plain-number fallback for whatever duration isn't one of the
+// presets -- same "click or type" flexibility as the guide's own duration
+// question, just without needing the AI in the loop for a same-page edit.
+function DurationEditor({ currentMinutes, onApply, onClose }) {
+  const [custom, setCustom] = useState("");
+  return (
+    <div className="duration-editor">
+      <p>How long will you spend here?</p>
+      <div className="duration-editor__options">
+        {SPEND_DURATION_OPTIONS_MIN.map((mins) => (
+          <button
+            key={mins}
+            type="button"
+            className={`duration-editor__chip${mins === currentMinutes ? " is-selected" : ""}`}
+            onClick={() => onApply(mins)}
+          >
+            {formatDurationLabel(mins)}
+          </button>
+        ))}
+      </div>
+      <div className="duration-editor__custom">
+        <input
+          type="number"
+          min="5"
+          step="5"
+          placeholder="Custom minutes"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+        />
+        <button
+          type="button"
+          disabled={!custom}
+          onClick={() => {
+            const mins = parseInt(custom, 10);
+            if (mins > 0) onApply(mins);
+          }}
+        >
+          Set
+        </button>
+        <button type="button" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ItemCard({ item, editable, catalogEntry, onSkip, onUndo, onAddPhoto, photoBusy, onSetDuration }) {
   const isSkipped = item.status === "skipped";
   const fileInputRef = useRef(null);
+  const [editingDuration, setEditingDuration] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
     disabled: !editable || isSkipped,
@@ -312,6 +419,7 @@ function ItemCard({ item, editable, onSkip, onUndo, onAddPhoto, photoBusy }) {
     transform: CSS.Transform.toString(transform),
     transition,
   };
+  const currentDuration = timeToMinutes(item.end) - timeToMinutes(item.start);
 
   return (
     <div
@@ -341,8 +449,33 @@ function ItemCard({ item, editable, onSkip, onUndo, onAddPhoto, photoBusy }) {
           </button>
         ))}
       <div className={`itin-card__content${isSkipped ? " is-fading" : ""}`}>
-        <div className="itin-card__time">
-          {formatTime12h(item.start)} – {formatTime12h(item.end)}
+        <div className="itin-card__time-block">
+          {catalogEntry?.windows && (
+            <div className="itin-card__hours">Open {formatWindows(catalogEntry.windows)}</div>
+          )}
+          {editable && !isSkipped && onSetDuration ? (
+            <button
+              type="button"
+              className="itin-card__time itin-card__time--editable"
+              onClick={() => setEditingDuration((o) => !o)}
+            >
+              {formatTime12h(item.start)} – {formatTime12h(item.end)}
+            </button>
+          ) : (
+            <div className="itin-card__time">
+              {formatTime12h(item.start)} – {formatTime12h(item.end)}
+            </div>
+          )}
+          {editingDuration && (
+            <DurationEditor
+              currentMinutes={currentDuration}
+              onApply={(mins) => {
+                onSetDuration(item.id, mins);
+                setEditingDuration(false);
+              }}
+              onClose={() => setEditingDuration(false)}
+            />
+          )}
         </div>
         <div className="itin-card__body">
           <div className="itin-card__title-row">
@@ -396,13 +529,31 @@ function ItemCard({ item, editable, onSkip, onUndo, onAddPhoto, photoBusy }) {
   );
 }
 
-function ConnectorRow({ item }) {
+function ConnectorRow({ item, distanceKm, editable, onSelectMode }) {
   return (
     <div className="itin-connector">
       <span className="itin-connector__line" />
-      <span className="itin-connector__label">
-        {item.title} ({formatTime12h(item.start)}–{formatTime12h(item.end)})
-      </span>
+      <div className="itin-connector__content">
+        <span className="itin-connector__label">
+          {item.title}
+          {distanceKm != null && ` — ${distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`}`}
+          {item.travelMode && ` · ${formatTime12h(item.start)}–${formatTime12h(item.end)}`}
+        </span>
+        {editable && distanceKm != null && onSelectMode && (
+          <div className="itin-connector__modes">
+            {TRANSPORT_MODES.map((mode) => (
+              <button
+                key={mode.key}
+                type="button"
+                className={`itin-connector__mode-chip${item.travelMode === mode.key ? " is-selected" : ""}`}
+                onClick={() => onSelectMode(item.id, mode.key)}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1342,6 +1493,31 @@ export default function Itinerary() {
     return { ok: true };
   }
 
+  // User-set "how long will I spend here" for a real stop, shifting
+  // everything after it to match.
+  function handleSetItemDuration(itemId, minutes) {
+    const currentDay = itineraryRef.current.days[dayIndex];
+    const idx = currentDay.items.findIndex((i) => i.id === itemId);
+    if (idx === -1) return;
+    const newItems = applyDurationChange(currentDay.items, idx, minutes);
+    updateDay((d) => ({ ...d, items: newItems }));
+  }
+
+  // User-picked transport mode for a travel connector -- recomputes its
+  // real duration from the actual distance and that mode's speed, then
+  // shifts everything after it to match.
+  function handleSelectConnectorMode(connectorId, modeKey) {
+    const currentDay = itineraryRef.current.days[dayIndex];
+    const idx = currentDay.items.findIndex((i) => i.id === connectorId);
+    if (idx === -1) return;
+    const distanceKm = connectorDistanceKm(currentDay.items, idx, placesById, foodById);
+    if (distanceKm == null) return;
+    const minutes = travelMinutesForMode(distanceKm, modeKey);
+    const withMode = currentDay.items.map((it, i) => (i === idx ? { ...it, travelMode: modeKey } : it));
+    const newItems = applyDurationChange(withMode, idx, minutes);
+    updateDay((d) => ({ ...d, items: newItems }));
+  }
+
   function reorderItems(draggedId, targetId) {
     const result = tryReorderBefore(draggedId, targetId);
     if (!result.ok) setMessage(result.reason); // reject the whole reorder, leave the day untouched
@@ -1513,18 +1689,26 @@ export default function Itinerary() {
         {day.items.length === 0 && <p className="itin-empty-day">Nothing scheduled this day.</p>}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={realItemIds} strategy={verticalListSortingStrategy}>
-            {day.items.map((item) =>
+            {day.items.map((item, idx) =>
               CONNECTOR_KINDS.has(item.kind) ? (
-                <ConnectorRow key={item.id} item={item} />
+                <ConnectorRow
+                  key={item.id}
+                  item={item}
+                  editable={canEdit}
+                  distanceKm={connectorDistanceKm(day.items, idx, placesById, foodById)}
+                  onSelectMode={canEdit ? handleSelectConnectorMode : null}
+                />
               ) : (
                 <ItemCard
                   key={item.id}
                   item={item}
                   editable={canEdit}
+                  catalogEntry={catalogEntryFor(item, placesById, foodById)}
                   onSkip={() => setItemStatus(item.id, "skipped")}
                   onUndo={() => setItemStatus(item.id, "planned")}
                   onAddPhoto={canEdit ? handleAddPhoto : null}
                   photoBusy={photoBusy}
+                  onSetDuration={canEdit ? handleSetItemDuration : null}
                 />
               )
             )}

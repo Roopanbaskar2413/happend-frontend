@@ -1398,12 +1398,94 @@ h1, h2, h3 {
   opacity: 0.4;
 }
 
-.itin-card__time {
+.itin-card__time-block {
   flex-shrink: 0;
-  width: 100px;
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.itin-card__hours {
+  font-size: 0.72rem;
+  color: #a99a89;
+}
+
+.itin-card__time {
   font-size: 0.8rem;
   font-weight: 700;
   color: #c1502e;
+}
+
+button.itin-card__time--editable {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-decoration-color: #d8cfc4;
+}
+
+.duration-editor {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid #ece2d6;
+  border-radius: 8px;
+  background: #fbf4ea;
+  font-size: 0.8rem;
+}
+
+.duration-editor p {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: #3a2e26;
+}
+
+.duration-editor__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.duration-editor__chip {
+  padding: 5px 10px;
+  border: 1px solid #d8cfc4;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.duration-editor__chip.is-selected {
+  border-color: #c1502e;
+  color: #c1502e;
+  font-weight: 700;
+}
+
+.duration-editor__custom {
+  display: flex;
+  gap: 6px;
+}
+
+.duration-editor__custom input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid #d8cfc4;
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+
+.duration-editor__custom button {
+  padding: 5px 10px;
+  border: 1px solid #d8cfc4;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.76rem;
+  cursor: pointer;
 }
 
 .itin-card__title-row {
@@ -1466,9 +1548,9 @@ h1, h2, h3 {
 
 .itin-connector {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  padding: 2px 16px;
+  padding: 4px 16px;
   color: #a99a89;
   font-size: 0.78rem;
 }
@@ -1478,6 +1560,34 @@ h1, h2, h3 {
   height: 18px;
   background: #d8cfc4;
   margin-left: 49px;
+}
+
+.itin-connector__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.itin-connector__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.itin-connector__mode-chip {
+  padding: 3px 10px;
+  border: 1px solid #d8cfc4;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.72rem;
+  color: #6b5d52;
+  cursor: pointer;
+}
+
+.itin-connector__mode-chip.is-selected {
+  border-color: #c1502e;
+  color: #c1502e;
+  font-weight: 700;
 }
 
 .itin-empty,
