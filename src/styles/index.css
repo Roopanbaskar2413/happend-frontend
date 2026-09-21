@@ -1478,6 +1478,13 @@ h1, h2, h3 {
   color: #3a2e26;
 }
 
+.duration-editor p.duration-editor__error {
+  margin: -4px 0 8px;
+  font-weight: 600;
+  color: #a8621f;
+  font-size: 0.76rem;
+}
+
 .duration-editor__options {
   display: flex;
   flex-wrap: wrap;

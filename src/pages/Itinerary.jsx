@@ -109,6 +109,18 @@ function applyTimeRangeChange(items, idx, newStart, newEnd) {
   });
 }
 
+// Whether a real catalog place's windows/closed_days fully cover a proposed
+// [startMin, endMin) visit -- the one source of truth for "does this
+// actually fit", used both to block an invalid edit before it's applied and
+// to flag a downstream stop a shift pushed outside its own hours.
+function windowsCoverRange(windows, closedDays, weekday, startMin, endMin) {
+  if (closedDays.includes(weekday)) return false;
+  return windows.some((w) => {
+    const [s, e] = w.split("-").map(timeToMinutes);
+    return startMin >= s && endMin <= e;
+  });
+}
+
 // After a shift, a later real stop might now land outside its own real
 // opening hours -- flag it plainly (reusing the existing warning line every
 // card already renders) instead of silently leaving a broken schedule
@@ -118,14 +130,7 @@ function flagInfeasibleItems(items, weekday, placesById, foodById) {
     if (CONNECTOR_KINDS.has(it.kind) || it.status === "skipped") return it;
     const entry = catalogEntryFor(it, placesById, foodById);
     if (!entry) return it;
-    const startMin = timeToMinutes(it.start);
-    const endMin = timeToMinutes(it.end);
-    const fits =
-      !entry.closed_days.includes(weekday) &&
-      entry.windows.some((w) => {
-        const [s, e] = w.split("-").map(timeToMinutes);
-        return startMin >= s && endMin <= e;
-      });
+    const fits = windowsCoverRange(entry.windows, entry.closed_days, weekday, timeToMinutes(it.start), timeToMinutes(it.end));
     return { ...it, warning: fits ? null : `May be closed by then — real hours: ${formatWindows(entry.windows)}` };
   });
 }
@@ -396,10 +401,18 @@ function buildInsertedDayItems(dayItems, candidates, place, newStart, newEnd) {
 // closer to how a person actually plans ("I'll be at WTF from 8:46 to
 // 10:16"), and it naturally allows a gap before the visit too (arrived
 // earlier but chose to start later), not just a length.
-function TimeRangeEditor({ currentStart, currentEnd, onApply, onClose }) {
+function TimeRangeEditor({ currentStart, currentEnd, catalogEntry, weekday, onApply, onClose }) {
   const [from, setFrom] = useState(currentStart);
   const [to, setTo] = useState(currentEnd);
-  const invalid = !from || !to || timeToMinutes(to) <= timeToMinutes(from);
+  const orderInvalid = !from || !to || timeToMinutes(to) <= timeToMinutes(from);
+  // Block the edit outright if the entered range falls outside this exact
+  // place's real hours -- not just a warning after the fact, since this is
+  // the one moment we know precisely what the user is trying to set.
+  const outsideHours =
+    !orderInvalid &&
+    catalogEntry &&
+    !windowsCoverRange(catalogEntry.windows, catalogEntry.closed_days, weekday, timeToMinutes(from), timeToMinutes(to));
+
   return (
     <div className="duration-editor">
       <p>When will you actually be here?</p>
@@ -413,8 +426,13 @@ function TimeRangeEditor({ currentStart, currentEnd, onApply, onClose }) {
           <input type="time" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
       </div>
+      {outsideHours && catalogEntry && (
+        <p className="duration-editor__error">
+          Closed then — real hours: {formatWindows(catalogEntry.windows)}
+        </p>
+      )}
       <div className="duration-editor__custom">
-        <button type="button" disabled={invalid} onClick={() => onApply(from, to)}>
+        <button type="button" disabled={orderInvalid || outsideHours} onClick={() => onApply(from, to)}>
           Set
         </button>
         <button type="button" onClick={onClose}>
@@ -425,7 +443,7 @@ function TimeRangeEditor({ currentStart, currentEnd, onApply, onClose }) {
   );
 }
 
-function ItemCard({ item, editable, catalogEntry, onSkip, onUndo, onAddPhoto, photoBusy, onSetTimeRange }) {
+function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAddPhoto, photoBusy, onSetTimeRange }) {
   const isSkipped = item.status === "skipped";
   const fileInputRef = useRef(null);
   const [editingDuration, setEditingDuration] = useState(false);
@@ -487,6 +505,8 @@ function ItemCard({ item, editable, catalogEntry, onSkip, onUndo, onAddPhoto, ph
             <TimeRangeEditor
               currentStart={item.start}
               currentEnd={item.end}
+              catalogEntry={catalogEntry}
+              weekday={weekday}
               onApply={(from, to) => {
                 onSetTimeRange(item.id, from, to);
                 setEditingDuration(false);
@@ -1726,6 +1746,7 @@ export default function Itinerary() {
                   item={item}
                   editable={canEdit}
                   catalogEntry={catalogEntryFor(item, placesById, foodById)}
+                  weekday={day.weekday}
                   onSkip={() => setItemStatus(item.id, "skipped")}
                   onUndo={() => setItemStatus(item.id, "planned")}
                   onAddPhoto={canEdit ? handleAddPhoto : null}
