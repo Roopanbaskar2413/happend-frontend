@@ -782,7 +782,7 @@ function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAdd
             )}
             {onSetNote && !isSkipped && (
               <button type="button" className="itin-card__note-btn" onClick={() => setEditingNote((o) => !o)}>
-                {item.userNote ? "Edit note" : "+ Note"}
+                {item.userNote ? "Edit note" : "Add Notes"}
               </button>
             )}
           </div>

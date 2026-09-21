@@ -5,7 +5,7 @@ test("a stop's note supports sentences, bullets, and checkboxes", async ({ page 
   await generatePlan(page);
 
   const noteBtn = page.locator(".itin-card__note-btn").first();
-  await expect(noteBtn).toHaveText("+ Note");
+  await expect(noteBtn).toHaveText("Add Notes");
   await noteBtn.click();
   await page.waitForSelector(".note-editor");
 
