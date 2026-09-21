@@ -61,3 +61,15 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+
+  # Vercel's own git-triggered auto-deploy for main is turned off (see
+  # vercel.json's git.deploymentEnabled) specifically so this is the only
+  # thing that can trigger a production deploy -- and only once both build
+  # and e2e have actually passed.
+  deploy:
+    needs: [build, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel deploy
+        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
