@@ -118,6 +118,10 @@ export default function Landing() {
   const { user, logout } = useAuth();
   const [cities, setCities] = useState([]);
   const [error, setError] = useState(null);
+  const [loadingCities, setLoadingCities] = useState(true);
+  // Only shown if the fetch is genuinely slow (a Render free-tier cold
+  // start can take 30-60s) -- a fast load never shows this at all.
+  const [showColdStartHint, setShowColdStartHint] = useState(false);
   const { kicker, headline, sub } = useHeroCopy();
   const [hasUsedApp, markUsed] = useHasUsedApp();
   const [{ hour, month }] = useState(getLocalParts);
@@ -130,8 +134,15 @@ export default function Landing() {
   useEffect(() => {
     getCities()
       .then(setCities)
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(err.message))
+      .finally(() => setLoadingCities(false));
   }, []);
+
+  useEffect(() => {
+    if (!loadingCities) return undefined;
+    const t = setTimeout(() => setShowColdStartHint(true), 4000);
+    return () => clearTimeout(t);
+  }, [loadingCities]);
 
   useEffect(() => {
     let cancelled = false;
@@ -282,6 +293,13 @@ export default function Landing() {
         </h2>
         <section className="landing__destinations">
           {error && <p className="error">Couldn't load destinations: {error}</p>}
+          {!error && loadingCities && (
+            <p className="itin-empty-day">
+              {showColdStartHint
+                ? "Waking up the server — this can take up to a minute on the first visit in a while."
+                : "Loading destinations…"}
+            </p>
+          )}
           {cities.map((city, i) => (
             <DestinationCard key={city.id} city={city} index={i} onSelect={handleSelect} />
           ))}
