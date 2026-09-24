@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getStays } from "../api/stays.js";
+import { getStays, logStaySelection } from "../api/stays.js";
 import { createPlan } from "../api/plan.js";
 
 const BAND_LABELS = { low: "Low", mid: "Mid", high: "High" };
@@ -139,7 +139,11 @@ export default function SelectStay() {
                       type="button"
                       className="stay-card__select-btn"
                       onClick={() =>
-                        setSelectedStayId((current) => (current === stay.id ? null : stay.id))
+                        setSelectedStayId((current) => {
+                          const next = current === stay.id ? null : stay.id;
+                          if (next) logStaySelection(city, next);
+                          return next;
+                        })
                       }
                     >
                       {selectedStayId === stay.id ? "Selected ✓" : "Select"}
