@@ -445,31 +445,11 @@ h1, h2, h3 {
   stroke-linecap: round;
 }
 
+/* Motion now comes from the <animateMotion>/<animate> elements in
+   Landing.jsx, sampling the same <path> the dotted route line is drawn
+   from -- this just sets the icon's look, not its movement. */
 .hero__plane {
-  position: absolute;
-  width: 22px;
-  height: 22px;
   color: rgba(255, 255, 255, 0.85);
-  offset-path: path("M-50 220 C 250 40, 550 320, 900 80 S 1300 -20, 1450 60");
-  offset-rotate: auto;
-  animation: fly 16s linear infinite;
-}
-
-@keyframes fly {
-  0% {
-    offset-distance: 0%;
-    opacity: 0;
-  }
-  6% {
-    opacity: 0.85;
-  }
-  94% {
-    opacity: 0.85;
-  }
-  100% {
-    offset-distance: 100%;
-    opacity: 0;
-  }
 }
 
 .hero__kicker {
@@ -538,7 +518,6 @@ h1, h2, h3 {
   .shooting-star,
   .sun,
   .cloud,
-  .hero__plane,
   .hero__wave-path,
   .star,
   .raindrop,

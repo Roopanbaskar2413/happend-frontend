@@ -124,6 +124,12 @@ export default function Landing() {
   const [showColdStartHint, setShowColdStartHint] = useState(false);
   const { kicker, headline, sub } = useHeroCopy();
   const [hasUsedApp, markUsed] = useHasUsedApp();
+  // SMIL's <animateMotion>/<animate> ignore the CSS `prefers-reduced-motion`
+  // media-query rule below (that only stops CSS @keyframes animations), so
+  // the plane's flight needs its own JS-level check to actually respect it.
+  const [prefersReducedMotion] = useState(
+    () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false
+  );
   const [{ hour, month }] = useState(getLocalParts);
   const timeOfDay = getTimeOfDay(hour);
   const season = getSeason(month);
@@ -256,11 +262,31 @@ export default function Landing() {
           )}
           <svg className="hero__route" viewBox="0 0 1400 320" preserveAspectRatio="none">
             <path
+              id="hero-route-path"
               className="hero__route-path"
               d="M-50 220 C 250 40, 550 320, 900 80 S 1300 -20, 1450 60"
             />
+            {/* Genuinely riding the dotted line, not just a separately-animated
+                icon near it -- animateMotion samples the same <path> the line
+                itself is drawn from, so it can't drift off it. */}
+            <g className="hero__plane">
+              <PlaneIcon width="26" height="26" x="-13" y="-13" />
+              {!prefersReducedMotion && (
+                <>
+                  <animateMotion dur="16s" repeatCount="indefinite" rotate="auto">
+                    <mpath href="#hero-route-path" />
+                  </animateMotion>
+                  <animate
+                    attributeName="opacity"
+                    dur="16s"
+                    repeatCount="indefinite"
+                    keyTimes="0;0.06;0.94;1"
+                    values="0;0.85;0.85;0"
+                  />
+                </>
+              )}
+            </g>
           </svg>
-          <PlaneIcon className="hero__plane" />
         </div>
 
         <p className="hero__kicker reveal" style={{ "--reveal-delay": "0ms" }}>
