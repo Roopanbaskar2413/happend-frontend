@@ -1078,6 +1078,16 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
 
 const GUIDE_INTRO =
   "Hey, what's changing? Add a place, drop a stop, shuffle the order — just tell me like you would a friend.";
+
+// Defense in depth: the system prompt tells the model never to use markdown
+// (this is a plain-text chat bubble), but an LLM instruction isn't a
+// guarantee -- it still occasionally emits **bold**, which would otherwise
+// show up as literal asterisks. Rendering real emphasis here is strictly
+// better than either leaking the asterisks or stripping them silently.
+function renderGuideText(text) {
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part));
+}
 const GUIDE_MAX_STEPS = 4;
 // A network hiccup or backend issue should never surface as raw error text —
 // the guide always answers in character, same principle as the backend's
@@ -1372,7 +1382,9 @@ function GuideChat({
                     <CompassIcon />
                   </span>
                 )}
-                <div className={`guide-chat__bubble guide-chat__bubble--${m.role}`}>{m.text}</div>
+                <div className={`guide-chat__bubble guide-chat__bubble--${m.role}`}>
+                  {renderGuideText(m.text)}
+                </div>
               </div>
               {showCategoryPicker && (
                 <div className="guide-suggestions">
