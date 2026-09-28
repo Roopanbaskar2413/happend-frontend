@@ -15,6 +15,7 @@ import { updateSavedPlan } from "../api/savedPlans.js";
 import { createMemory, uploadPhoto } from "../api/memories.js";
 import { chatWithGuide } from "../api/guide.js";
 import { formatTime12h, formatWindows } from "../utils/time.js";
+import { CompassIcon } from "../components/icons/TravelIcons.jsx";
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const CONNECTOR_KINDS = new Set(["travel", "transfer"]);
@@ -1076,7 +1077,7 @@ function AddPlacePanel({ places, food, usedIds, weekday, anchorMinutes, onAdd, o
 }
 
 const GUIDE_INTRO =
-  "Hi! Tell me what you'd like to change — add a place, remove a stop, or move something earlier.";
+  "Hey, what's changing? Add a place, drop a stop, shuffle the order — just tell me like you would a friend.";
 const GUIDE_MAX_STEPS = 4;
 // A network hiccup or backend issue should never surface as raw error text —
 // the guide always answers in character, same principle as the backend's
@@ -1340,7 +1341,12 @@ function GuideChat({
   return (
     <div className="guide-chat">
       <div className="guide-chat__header">
-        <span>AI Guide</span>
+        <span className="guide-chat__header-title">
+          <span className="guide-chat__avatar">
+            <CompassIcon />
+          </span>
+          AI Guide
+        </span>
         <button type="button" onClick={onClose} aria-label="Close guide">
           ×
         </button>
@@ -1359,8 +1365,15 @@ function GuideChat({
             ? []
             : visibleSuggestions.filter((s) => !chosenKind || s.kind === chosenKind);
           return (
-            <div key={i}>
-              <div className={`guide-chat__bubble guide-chat__bubble--${m.role}`}>{m.text}</div>
+            <div key={i} className="guide-chat__message">
+              <div className={`guide-chat__row guide-chat__row--${m.role}`}>
+                {m.role === "assistant" && (
+                  <span className="guide-chat__avatar guide-chat__avatar--small">
+                    <CompassIcon />
+                  </span>
+                )}
+                <div className={`guide-chat__bubble guide-chat__bubble--${m.role}`}>{m.text}</div>
+              </div>
               {showCategoryPicker && (
                 <div className="guide-suggestions">
                   {kinds.map((k) => {
@@ -1519,7 +1532,16 @@ function GuideChat({
           );
         })}
         {busy && (
-          <div className="guide-chat__bubble guide-chat__bubble--assistant guide-chat__bubble--typing">…</div>
+          <div className="guide-chat__row guide-chat__row--assistant">
+            <span className="guide-chat__avatar guide-chat__avatar--small">
+              <CompassIcon />
+            </span>
+            <div className="guide-chat__bubble guide-chat__bubble--assistant guide-chat__bubble--typing">
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
         )}
       </div>
       <div className="guide-chat__input-row">

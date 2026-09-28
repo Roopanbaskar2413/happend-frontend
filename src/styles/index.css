@@ -2027,9 +2027,15 @@ h1, h2, h3 {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  background: #fbf4ea;
+  background: linear-gradient(135deg, #fbf4ea, #f7e6d4);
   border-bottom: 1px solid #ece2d6;
   font-weight: 700;
+}
+
+.guide-chat__header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .guide-chat__header button {
@@ -2040,37 +2046,130 @@ h1, h2, h3 {
   color: #6b5d52;
 }
 
+.guide-chat__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #c1502e;
+  color: #fff;
+}
+
+.guide-chat__avatar svg {
+  width: 17px;
+  height: 17px;
+}
+
+.guide-chat__avatar--small {
+  width: 24px;
+  height: 24px;
+  align-self: flex-end;
+}
+
+.guide-chat__avatar--small svg {
+  width: 13px;
+  height: 13px;
+}
+
 .guide-chat__messages {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 14px 16px;
   max-height: 320px;
   overflow-y: auto;
 }
 
+.guide-chat__message {
+  display: flex;
+  flex-direction: column;
+  animation: guide-message-in 0.25s ease-out;
+}
+
+@keyframes guide-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.guide-chat__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.guide-chat__row--user {
+  justify-content: flex-end;
+}
+
 .guide-chat__bubble {
   max-width: 85%;
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: 14px;
   font-size: 0.88rem;
   line-height: 1.4;
 }
 
+.guide-chat__row--user .guide-chat__bubble {
+  border-bottom-right-radius: 4px;
+}
+
+.guide-chat__row--assistant .guide-chat__bubble {
+  border-bottom-left-radius: 4px;
+}
+
 .guide-chat__bubble--user {
-  align-self: flex-end;
   background: #c1502e;
   color: #fff;
 }
 
 .guide-chat__bubble--assistant {
-  align-self: flex-start;
   background: #f1e4d3;
   color: #3a2e26;
 }
 
 .guide-chat__bubble--typing {
-  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px;
+}
+
+.guide-chat__bubble--typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a08f7f;
+  animation: guide-typing-bounce 1.1s ease-in-out infinite;
+}
+
+.guide-chat__bubble--typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.guide-chat__bubble--typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes guide-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
 }
 
 .guide-chat__input-row {
