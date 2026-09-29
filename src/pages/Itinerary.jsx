@@ -1630,6 +1630,12 @@ export default function Itinerary() {
     now.getDate()
   ).padStart(2, "0")}`;
   const isToday = day?.date === todayIso;
+  // Disruption handling ("Running late", "Rain", ...) is for a trip that's
+  // actually happening, not one still being drafted -- a plan with no
+  // planId hasn't been saved/confirmed yet, and one whose arrival_date
+  // hasn't arrived is still in the future. Both cases: nothing has "gone
+  // wrong" yet for there to be anything to re-flow around.
+  const tripHasStarted = Boolean(planId) && Boolean(planRequest?.arrival_date) && planRequest.arrival_date <= todayIso;
 
   useEffect(() => {
     getPlaces(city).then(setPlaces).catch(() => {});
@@ -2060,7 +2066,9 @@ export default function Itinerary() {
         </div>
       )}
 
-      {canEdit && <ReflowBar realItems={realItems} busy={reflowBusy} onApply={applyDisruption} />}
+      {canEdit && tripHasStarted && (
+        <ReflowBar realItems={realItems} busy={reflowBusy} onApply={applyDisruption} />
+      )}
 
       {changeLog && changeLog.length > 0 && (
         <ChangeLog changes={changeLog} onDismiss={() => setChangeLog(null)} />
