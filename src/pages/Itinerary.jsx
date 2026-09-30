@@ -2001,7 +2001,7 @@ export default function Itinerary() {
           <button
             type="button"
             className="itin-header__summary-btn"
-            onClick={() => navigate("/summary", { state: { itinerary, city, planRequest } })}
+            onClick={() => navigate("/summary", { state: { itinerary, city, planRequest, planId } })}
           >
             Looks good →
           </button>

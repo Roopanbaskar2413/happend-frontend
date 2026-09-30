@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getTravelInfo } from "../api/travel.js";
 import { getStays } from "../api/stays.js";
-import { savePlan } from "../api/savedPlans.js";
+import { savePlan, updateSavedPlan } from "../api/savedPlans.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const COST_KINDS = new Set(["place", "meal"]);
@@ -34,7 +34,7 @@ export default function TripSummary() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, login, signup } = useAuth();
-  const { itinerary, city = "pondicherry", planRequest } = location.state ?? {};
+  const { itinerary, city = "pondicherry", planRequest, planId } = location.state ?? {};
   const [travelInfo, setTravelInfo] = useState(null);
   const [stays, setStays] = useState([]);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error
@@ -70,11 +70,19 @@ export default function TripSummary() {
   const arrivalDate = planRequest?.arrival_date ?? itinerary.days[0]?.date;
   const departureDate = planRequest?.departure_date ?? itinerary.days[itinerary.days.length - 1]?.date;
 
+  // A plan reopened from My Trips already has a row in the DB (planId is
+  // set) -- saving again from here must update that same row, not create a
+  // second copy. Only a genuinely new, never-saved itinerary calls the
+  // create endpoint.
   async function doSave() {
     setSaveState("saving");
     setSaveError(null);
     try {
-      await savePlan({ city, arrivalDate, departureDate, itinerary, planRequest });
+      if (planId) {
+        await updateSavedPlan(planId, itinerary);
+      } else {
+        await savePlan({ city, arrivalDate, departureDate, itinerary, planRequest });
+      }
       setSaveState("saved");
     } catch (err) {
       setSaveState("error");
@@ -273,22 +281,30 @@ export default function TripSummary() {
       )}
 
       <section className="summary-section save-plan">
-        <h2>Save this plan</h2>
+        <h2>{planId ? "Update this plan" : "Save this plan"}</h2>
         {saveState === "saved" ? (
           <p className="save-plan__confirmation">
-            Saved. We'll email a reminder to <strong>{user?.email}</strong> a couple of days before{" "}
-            {formatDate(arrivalDate)}.
+            {planId ? (
+              "Updated."
+            ) : (
+              <>
+                Saved. We'll email a reminder to <strong>{user?.email}</strong> a couple of days before{" "}
+                {formatDate(arrivalDate)}.
+              </>
+            )}
           </p>
         ) : user ? (
           <>
-            <p className="save-plan__note">Saving as {user.email}.</p>
+            <p className="save-plan__note">
+              {planId ? `Updating as ${user.email}.` : `Saving as ${user.email}.`}
+            </p>
             <button
               type="button"
               className="planner-submit"
               onClick={handleSaveClick}
               disabled={saveState === "saving"}
             >
-              {saveState === "saving" ? "Saving…" : "Save & remind me"}
+              {saveState === "saving" ? "Saving…" : planId ? "Update saved trip" : "Save & remind me"}
             </button>
           </>
         ) : (
