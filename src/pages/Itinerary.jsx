@@ -15,7 +15,7 @@ import { updateSavedPlan } from "../api/savedPlans.js";
 import { createMemory, uploadPhoto } from "../api/memories.js";
 import { chatWithGuide } from "../api/guide.js";
 import { formatTime12h, formatWindows } from "../utils/time.js";
-import { CompassIcon } from "../components/icons/TravelIcons.jsx";
+import { CameraIcon, CompassIcon } from "../components/icons/TravelIcons.jsx";
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const CONNECTOR_KINDS = new Set(["travel", "transfer"]);
@@ -754,7 +754,7 @@ function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAdd
                   disabled={photoBusy}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  📷
+                  <CameraIcon />
                 </button>
                 <input
                   ref={fileInputRef}
@@ -1943,7 +1943,7 @@ export default function Itinerary() {
         memoryIdRef.current = memory.id;
       }
       await uploadPhoto(memoryIdRef.current, file);
-      setMessage(`📷 Photo from ${placeTitle} added to your trip memory.`);
+      setMessage(`Photo from ${placeTitle} added to your trip memory.`);
     } catch (err) {
       setMessage(err.message);
     } finally {

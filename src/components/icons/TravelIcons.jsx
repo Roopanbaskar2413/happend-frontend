@@ -86,6 +86,15 @@ export function AlertBoltIcon(props) {
   );
 }
 
+export function CameraIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M17 12 14 17H8a3 3 0 0 0-3 3v15a3 3 0 0 0 3 3h32a3 3 0 0 0 3-3V20a3 3 0 0 0-3-3h-6l-3-5z" />
+      <circle cx="24" cy="27" r="8" />
+    </svg>
+  );
+}
+
 export function RefreshIcon(props) {
   return (
     <svg {...base} {...props}>

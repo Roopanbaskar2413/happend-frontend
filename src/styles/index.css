@@ -1162,11 +1162,18 @@ h1, h2, h3 {
 .itin-card__photo-btn {
   border: none;
   background: transparent;
-  font-size: 1rem;
   line-height: 1;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 4px;
   border-radius: 6px;
+  color: #6b5d52;
+  display: inline-flex;
+  align-items: center;
+}
+
+.itin-card__photo-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .itin-card__photo-btn:hover {
