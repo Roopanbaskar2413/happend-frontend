@@ -75,6 +75,21 @@ h1, h2, h3 {
   color: #ffd76a;
 }
 
+.nav__auth .nav__cta {
+  background: #FFD700;
+  color: #1F2933;
+  padding: 8px 18px;
+  border-radius: 999px;
+  opacity: 1;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.nav__auth .nav__cta:hover {
+  background: #e8c200;
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
 /* Hero */
 
 .hero {
@@ -690,7 +705,7 @@ h1, h2, h3 {
   width: 100%;
   padding: 11px;
   border: none;
-  border-radius: 10px;
+  border-radius: 999px;
   background: #E10600;
   color: #fff;
   font-size: 0.95rem;

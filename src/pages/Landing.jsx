@@ -184,6 +184,9 @@ export default function Landing() {
           <span className="nav__logo-end">END</span>
         </span>
         <div className="nav__auth">
+          <Link to="/plan" className="nav__cta">
+            Plan your trip →
+          </Link>
           {user ? (
             <>
               <Link to="/trips">My trips</Link>
@@ -308,7 +311,7 @@ export default function Landing() {
           <path
             className="hero__wave-path"
             d="M0,32 C240,80 480,0 720,24 C960,48 1200,88 1440,40 L1440,80 L0,80 Z"
-            fill="#fdf8f2"
+            fill="#F3F8FD"
           />
         </svg>
       </header>
