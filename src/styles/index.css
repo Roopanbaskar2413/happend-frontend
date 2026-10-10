@@ -631,7 +631,8 @@ h1, h2, h3 {
 }
 
 .theme-pondicherry .destination-card__banner {
-  background: linear-gradient(135deg, #ff9966, #e2543f);
+  /* French Quarter: ochre/mustard colonial walls into a terracotta-burgundy roofline. */
+  background: linear-gradient(135deg, #D9A95B, #8B4A3B);
 }
 
 .theme-ooty .destination-card__banner {
