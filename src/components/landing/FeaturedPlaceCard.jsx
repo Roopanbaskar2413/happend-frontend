@@ -1,20 +1,21 @@
-import { StarIcon } from "../icons/TravelIcons.jsx";
-
-// Tall photo card: full-bleed image, dark gradient for text legibility,
-// a rating badge (not a price badge -- these are free public attractions,
-// so a "$0" badge would be odd), two tag pills from the place's own
-// interests, and a single CTA that goes to the real place detail page.
-export default function FeaturedPlaceCard({ image, name, description, rating, tags, onSelect }) {
+// Tall photo card, matched to the reference design: dot pagination near
+// the top of the photo, title + badge on one row, muted description,
+// two tag pills, and a full-width pill button with margin inside the card.
+export default function FeaturedPlaceCard({ image, name, description, rating, tags, tint, onSelect }) {
   return (
-    <div className="featured-place-card">
+    <div className={`featured-place-card featured-place-card--${tint}`}>
       <img className="featured-place-card__image" src={image} alt={name} />
       <div className="featured-place-card__gradient" />
-      <span className="featured-place-card__rating">
-        <StarIcon width="13" height="13" />
-        {rating.toFixed(1)}
-      </span>
+      <div className="featured-place-card__dots">
+        <span className="is-active" />
+        <span />
+        <span />
+      </div>
       <div className="featured-place-card__body">
-        <h3>{name}</h3>
+        <div className="featured-place-card__title-row">
+          <h3>{name}</h3>
+          <span className="featured-place-card__badge">★ {rating.toFixed(1)}</span>
+        </div>
         <p>{description}</p>
         <div className="featured-place-card__tags">
           {tags.map((tag) => (
@@ -23,10 +24,10 @@ export default function FeaturedPlaceCard({ image, name, description, rating, ta
             </span>
           ))}
         </div>
+        <button type="button" className="featured-place-card__action" onClick={onSelect}>
+          Explore
+        </button>
       </div>
-      <button type="button" className="featured-place-card__action" onClick={onSelect}>
-        Explore
-      </button>
     </div>
   );
 }

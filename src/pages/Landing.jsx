@@ -23,6 +23,7 @@ const FEATURED_PLACES = [
     rating: 4.6,
     tags: ["beach", "walk"],
     image: promenadeBeachImg,
+    tint: "teal",
   },
   {
     id: "french_quarter",
@@ -32,6 +33,7 @@ const FEATURED_PLACES = [
     rating: 4.7,
     tags: ["heritage", "walk"],
     image: frenchQuarterImg,
+    tint: "olive",
   },
 ];
 
@@ -357,6 +359,7 @@ export default function Landing() {
               description={place.description}
               rating={place.rating}
               tags={place.tags}
+              tint={place.tint}
               onSelect={() => navigate(`/place/pondicherry/${place.kind}/${place.id}`)}
             />
           ))}
