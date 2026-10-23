@@ -14,7 +14,7 @@ export default function FeaturedPlaceCard({ image, name, description, rating, ta
       <div className="featured-place-card__body">
         <div className="featured-place-card__title-row">
           <h3>{name}</h3>
-          <span className="featured-place-card__badge">★ {rating.toFixed(1)}</span>
+          <span className="featured-place-card__badge">{rating.toFixed(1)}</span>
         </div>
         <p>{description}</p>
         <div className="featured-place-card__tags">

@@ -594,20 +594,22 @@ h1, h2, h3 {
 .featured-place-card__gradient {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 32%, rgba(0, 0, 0, 0.55) 68%, rgba(0, 0, 0, 0.88) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.22) 0%, rgba(0, 0, 0, 0.42) 55%, rgba(0, 0, 0, 0.88) 100%);
 }
 
-/* Per-card color tint, blended over the gradient -- matches the reference's
-   per-photo mood (cool blue-teal for the beach, warm olive for the heritage
-   street) instead of a flat black fade on every card. */
+/* Per-card color wash across the WHOLE photo (not just a bottom fade) --
+   matches the reference's moody, color-graded look, where even the top of
+   the image carries a tint, not just bright/unprocessed photo fading into
+   a dark bottom. Cool blue-teal for the beach, warm olive for the heritage
+   street. */
 .featured-place-card--teal .featured-place-card__gradient {
   background:
-    linear-gradient(180deg, rgba(10, 40, 50, 0) 30%, rgba(8, 35, 45, 0.55) 68%, rgba(6, 28, 38, 0.92) 100%);
+    linear-gradient(180deg, rgba(5, 30, 42, 0.42) 0%, rgba(5, 28, 38, 0.6) 55%, rgba(3, 18, 26, 0.92) 100%);
 }
 
 .featured-place-card--olive .featured-place-card__gradient {
   background:
-    linear-gradient(180deg, rgba(35, 32, 10, 0) 30%, rgba(30, 28, 10, 0.55) 68%, rgba(24, 22, 8, 0.92) 100%);
+    linear-gradient(180deg, rgba(32, 29, 8, 0.42) 0%, rgba(28, 26, 8, 0.6) 55%, rgba(18, 16, 5, 0.92) 100%);
 }
 
 .featured-place-card__dots {
