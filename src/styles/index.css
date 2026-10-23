@@ -776,6 +776,21 @@ h1, h2, h3 {
   justify-content: flex-end;
 }
 
+/* Soft colored glow around each card, tinted to match its own photo/mood
+   (teal haze for the beach, green for the hills, blue for the backwaters)
+   instead of a plain neutral grey shadow on every card. */
+.city-card--ocean {
+  box-shadow: 0 24px 44px rgba(6, 40, 55, 0.38), 0 10px 20px rgba(20, 25, 30, 0.2);
+}
+
+.city-card--green {
+  box-shadow: 0 24px 44px rgba(20, 60, 35, 0.38), 0 10px 20px rgba(20, 25, 30, 0.2);
+}
+
+.city-card--blue {
+  box-shadow: 0 24px 44px rgba(15, 50, 75, 0.38), 0 10px 20px rgba(20, 25, 30, 0.2);
+}
+
 .city-card__image {
   position: absolute;
   inset: 0;
