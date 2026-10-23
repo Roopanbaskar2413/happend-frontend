@@ -1,123 +1,31 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getCities } from "../api/catalog.js";
-import { getUserLocation, getWeatherFor } from "../api/weather.js";
-import DestinationCard from "../components/landing/DestinationCard.jsx";
-import FeaturedPlaceCard from "../components/landing/FeaturedPlaceCard.jsx";
-import HowItAdapts from "../components/landing/HowItAdapts.jsx";
-import { CloudShape, PlaneIcon } from "../components/icons/TravelIcons.jsx";
+import CityCarouselCard from "../components/landing/CityCarouselCard.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import promenadeBeachImg from "../assets/places/promenade_beach.jpg";
 import frenchQuarterImg from "../assets/places/french_quarter.jpg";
+import pondicherryGateImg from "../assets/places/pondicherry_gate.jpg";
 
-// Hand-picked real catalog entries for the homepage's "featured places"
-// teaser -- not the full catalog, just enough to show real photos before
-// the user even picks a city. Swap/extend this list as more places get
-// real, properly-licensed photos (see PROJECT_OVERVIEW.md).
-const FEATURED_PLACES = [
-  {
-    id: "promenade_beach",
-    kind: "place",
-    name: "Promenade (Rock) Beach",
-    description: "1.2 km seafront promenade, closed to vehicles in the evening -- exactly when it's worth walking.",
-    rating: 4.6,
-    tags: ["beach", "walk"],
-    image: promenadeBeachImg,
-    tint: "teal",
-  },
-  {
-    id: "french_quarter",
-    kind: "place",
-    name: "French Quarter (White Town)",
-    description: "Mustard-yellow colonial streets -- Rue Dumas, Rue Suffren, Rue Romain Rolland. Best light before 9am.",
-    rating: 4.7,
-    tags: ["heritage", "walk"],
-    image: frenchQuarterImg,
-    tint: "olive",
-  },
-];
+// Real photos for Pondicherry's carousel -- the only city with real photos
+// so far. Ooty/Kerala fall back to a placeholder gradient (see
+// CityCarouselCard) until real, properly-licensed photos exist for them.
+const CITY_IMAGES = {
+  pondicherry: [promenadeBeachImg, frenchQuarterImg, pondicherryGateImg],
+};
 
-const HERO_VARIANTS = [
-  {
-    kicker: "Plans break. This one bends.",
-    headline: () => "Running two hours late? Say so.",
-    sub: () =>
-      "Your trip rearranges itself around it — and tells you exactly what it dropped, and why.",
-  },
-  {
-    kicker: "The last ferry out is 16:00.",
-    headline: () => "Your plan already knew that.",
-    sub: () =>
-      "Every stop checked against real opening hours, closing days, and the time it actually takes to get there. Nothing sends you to a locked gate.",
-  },
-  {
-    kicker: "Not another AI itinerary.",
-    headline: () => "A plan that survives Sunday afternoon.",
-    sub: () =>
-      "Built on verified timings, not confident guesses. And when the day slips, it re-plans on the spot.",
-  },
-  {
-    kicker: "Built for trips that go sideways.",
-    headline: (isWeekend) =>
-      isWeekend ? "Your next trip, sorted by Friday night." : "Your next weekend is already half-planned.",
-    sub: () => "Plans change. Yours keeps up — and always says what changed.",
-  },
-];
+const CITY_TAGS = {
+  pondicherry: ["Beach", "Heritage", "Food"],
+  ooty: ["Hills", "Tea gardens"],
+  kerala: ["Backwaters", "Nature"],
+};
 
-const STARS = Array.from({ length: 24 }, (_, i) => ({
-  top: `${(i * 37) % 60}%`,
-  left: `${(i * 53) % 100}%`,
-  delay: `${(i % 8) * 0.4}s`,
-  size: `${1 + (i % 3)}px`,
-}));
-
-const RAINDROPS = Array.from({ length: 30 }, (_, i) => ({
-  left: `${(i * 13) % 100}%`,
-  delay: `${(i % 10) * 0.25}s`,
-  duration: `${0.6 + (i % 5) * 0.15}s`,
-}));
-
-// Kept clear of the centered text column (roughly 20%-80% wide, 8%-58% tall).
-const CLOUDS = [
-  { top: "10%", left: "2%", width: "140px", duration: "34s", delay: "0s" },
-  { top: "8%", left: "80%", width: "110px", duration: "40s", delay: "-12s" },
-  { top: "62%", left: "84%", width: "95px", duration: "28s", delay: "-6s" },
-];
-
-// Purely decorative theming, not tied to any one destination — the catalog covers
-// many cities, so this reads the visitor's own local clock/calendar, not a city's.
-function getLocalParts() {
-  const now = new Date();
-  return { hour: now.getHours(), month: now.getMonth() };
-}
-
-function getTimeOfDay(hour) {
-  if (hour >= 5 && hour < 12) return "morning";
-  if (hour >= 12 && hour < 17) return "afternoon";
-  if (hour >= 17 && hour < 20) return "evening";
-  return "night";
-}
-
-// Broad-strokes seasonal palette (most of India: hot summer, monsoon rains, mild winter).
-// Decorative only — never used as a stand-in for a specific destination's real forecast.
-function getSeason(month) {
-  if (month >= 2 && month <= 5) return "summer"; // Mar-Jun
-  if (month >= 6 && month <= 10) return "monsoon"; // Jul-Nov
-  return "winter"; // Dec-Feb
-}
-
-function useHeroCopy() {
-  const [variant] = useState(
-    () => HERO_VARIANTS[Math.floor(Math.random() * HERO_VARIANTS.length)]
-  );
-  const day = new Date().getDay(); // 0 = Sunday, 6 = Saturday
-  const isWeekend = day === 0 || day === 6;
-  return {
-    kicker: variant.kicker,
-    headline: variant.headline(isWeekend),
-    sub: variant.sub(isWeekend),
-  };
-}
+// Matches the gradient/placeholder tint classes in index.css.
+const CITY_TINTS = {
+  pondicherry: "ocean",
+  ooty: "green",
+  kerala: "blue",
+};
 
 const USED_APP_KEY = "happend:usedApp";
 
@@ -152,20 +60,7 @@ export default function Landing() {
   // Only shown if the fetch is genuinely slow (a Render free-tier cold
   // start can take 30-60s) -- a fast load never shows this at all.
   const [showColdStartHint, setShowColdStartHint] = useState(false);
-  const { kicker, headline, sub } = useHeroCopy();
-  const [hasUsedApp, markUsed] = useHasUsedApp();
-  // SMIL's <animateMotion>/<animate> ignore the CSS `prefers-reduced-motion`
-  // media-query rule below (that only stops CSS @keyframes animations), so
-  // the plane's flight needs its own JS-level check to actually respect it.
-  const [prefersReducedMotion] = useState(
-    () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false
-  );
-  const [{ hour, month }] = useState(getLocalParts);
-  const timeOfDay = getTimeOfDay(hour);
-  const season = getSeason(month);
-  const isNight = timeOfDay === "night";
-  const isMonsoon = season === "monsoon";
-  const [weather, setWeather] = useState(null); // stays null unless/until the live read succeeds
+  const [, markUsed] = useHasUsedApp();
 
   useEffect(() => {
     getCities()
@@ -180,35 +75,14 @@ export default function Landing() {
     return () => clearTimeout(t);
   }, [loadingCities]);
 
-  useEffect(() => {
-    let cancelled = false;
-    // Best-effort, non-blocking: the page already looks right without this.
-    // Denial, timeout, or a slow/failed fetch all just leave `weather` null.
-    getUserLocation()
-      .then(({ lat, lon }) => getWeatherFor(lat, lon))
-      .then((w) => {
-        if (!cancelled) setWeather(w);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Real conditions beat the seasonal guess when we have them; season is just the fallback.
-  const rainActive = weather ? weather.condition === "rain" || weather.condition === "storm" : isMonsoon;
-  const weatherCondition = weather?.condition ?? null;
-  const isHot = weather?.isHot ?? false;
-  const isWindy = weather?.isWindy ?? false;
-
   function handleSelect(city) {
     markUsed();
     navigate("/plan", { state: { city: city.id } });
   }
 
   return (
-    <div className="page">
-      <nav className="nav">
+    <div className="page page--simple">
+      <nav className="nav nav--light">
         <span className="nav__logo">
           <span className="nav__logo-hap">HAPP</span>
           <span className="nav__logo-end">END</span>
@@ -234,155 +108,35 @@ export default function Landing() {
         </div>
       </nav>
 
-      <header
-        className={`hero hero--${timeOfDay} hero--${season}${isHot ? " hero--hot" : ""}`}
-      >
-        <div className="hero__bg" />
-        <div className={`hero__season-overlay hero__season-overlay--${season}`} />
-        {weatherCondition && (
-          <div className={`hero__weather-overlay hero__weather-overlay--${weatherCondition}`} />
+      <main className="landing landing--simple">
+        <h1 className="landing__title">Where to?</h1>
+        <p className="landing__subtitle">
+          Built on verified timings, not confident guesses. And when the day slips, it re-plans on the spot.
+        </p>
+
+        {error && <p className="error">Couldn't load destinations: {error}</p>}
+        {!error && loadingCities && (
+          <p className="itin-empty-day">
+            {showColdStartHint
+              ? "Waking up the server — this can take up to a minute on the first visit in a while."
+              : "Loading destinations…"}
+          </p>
         )}
-        {weatherCondition === "storm" && <div className="hero__lightning" />}
-        {isHot && <div className="hero__heat-overlay" />}
-        <div className="hero__ambient" aria-hidden="true">
-          {isNight &&
-            STARS.map((star, i) => (
-              <span
-                key={i}
-                className="star"
-                style={{
-                  top: star.top,
-                  left: star.left,
-                  animationDelay: star.delay,
-                  width: star.size,
-                  height: star.size,
-                }}
-              />
-            ))}
-          {rainActive &&
-            RAINDROPS.map((drop, i) => (
-              <span
-                key={i}
-                className="raindrop"
-                style={{ left: drop.left, animationDelay: drop.delay, animationDuration: drop.duration }}
-              />
-            ))}
-          {isNight ? (
-            <>
-              <span className="moon" />
-              <span className="shooting-star shooting-star-1" />
-              <span className="shooting-star shooting-star-2" />
-            </>
-          ) : (
-            <>
-              <span className={`sun sun--${timeOfDay}`} />
-              {CLOUDS.map((cloud, i) => (
-                <CloudShape
-                  key={i}
-                  className={`cloud cloud--${timeOfDay}`}
-                  style={{
-                    top: cloud.top,
-                    left: cloud.left,
-                    width: cloud.width,
-                    animationDuration: isWindy
-                      ? `${parseFloat(cloud.duration) * 0.4}s`
-                      : cloud.duration,
-                    animationDelay: cloud.delay,
-                  }}
-                />
-              ))}
-            </>
-          )}
-          <svg className="hero__route" viewBox="0 0 1400 320" preserveAspectRatio="none">
-            <path
-              id="hero-route-path"
-              className="hero__route-path"
-              d="M-50 220 C 250 40, 550 320, 900 80 S 1300 -20, 1450 60"
-            />
-            {/* Genuinely riding the dotted line, not just a separately-animated
-                icon near it -- animateMotion samples the same <path> the line
-                itself is drawn from, so it can't drift off it. */}
-            <g className="hero__plane">
-              <PlaneIcon width="26" height="26" x="-13" y="-13" />
-              {!prefersReducedMotion && (
-                <>
-                  <animateMotion dur="16s" repeatCount="indefinite" rotate="auto">
-                    <mpath href="#hero-route-path" />
-                  </animateMotion>
-                  <animate
-                    attributeName="opacity"
-                    dur="16s"
-                    repeatCount="indefinite"
-                    keyTimes="0;0.06;0.94;1"
-                    values="0;0.85;0.85;0"
-                  />
-                </>
-              )}
-            </g>
-          </svg>
-        </div>
 
-        <p className="hero__kicker reveal" style={{ "--reveal-delay": "0ms" }}>
-          {kicker}
-        </p>
-        <h1 className="reveal" style={{ "--reveal-delay": "90ms" }}>
-          {headline}
-        </h1>
-        <p className="hero__sub reveal" style={{ "--reveal-delay": "180ms" }}>
-          {sub}
-        </p>
-
-        <svg
-          className="hero__wave"
-          viewBox="0 0 1440 80"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            className="hero__wave-path"
-            d="M0,32 C240,80 480,0 720,24 C960,48 1200,88 1440,40 L1440,80 L0,80 Z"
-            fill="#F3F8FD"
-          />
-        </svg>
-      </header>
-
-      <main className="landing">
-        <h2 className="landing__section-title reveal" style={{ "--reveal-delay": "0ms" }}>
-          Featured in Pondicherry
-        </h2>
-        <section className="landing__featured-places">
-          {FEATURED_PLACES.map((place) => (
-            <FeaturedPlaceCard
-              key={place.id}
-              image={place.image}
-              name={place.name}
-              description={place.description}
-              rating={place.rating}
-              tags={place.tags}
-              tint={place.tint}
-              onSelect={() => navigate(`/place/pondicherry/${place.kind}/${place.id}`)}
+        <section className="landing__cities">
+          {cities.map((city) => (
+            <CityCarouselCard
+              key={city.id}
+              name={city.name}
+              blurb={city.blurb}
+              tags={CITY_TAGS[city.id]}
+              images={CITY_IMAGES[city.id]}
+              tint={CITY_TINTS[city.id] || "default"}
+              comingSoon={city.coming_soon}
+              onSelect={() => handleSelect(city)}
             />
           ))}
         </section>
-
-        <h2 className="landing__section-title reveal" style={{ "--reveal-delay": "0ms" }}>
-          Where to?
-        </h2>
-        <section className="landing__destinations">
-          {error && <p className="error">Couldn't load destinations: {error}</p>}
-          {!error && loadingCities && (
-            <p className="itin-empty-day">
-              {showColdStartHint
-                ? "Waking up the server — this can take up to a minute on the first visit in a while."
-                : "Loading destinations…"}
-            </p>
-          )}
-          {cities.map((city, i) => (
-            <DestinationCard key={city.id} city={city} index={i} onSelect={handleSelect} />
-          ))}
-        </section>
-
-        {!hasUsedApp && <HowItAdapts />}
       </main>
     </div>
   );
