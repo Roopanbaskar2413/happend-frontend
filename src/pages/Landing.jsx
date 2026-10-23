@@ -3,9 +3,37 @@ import { Link, useNavigate } from "react-router-dom";
 import { getCities } from "../api/catalog.js";
 import { getUserLocation, getWeatherFor } from "../api/weather.js";
 import DestinationCard from "../components/landing/DestinationCard.jsx";
+import FeaturedPlaceCard from "../components/landing/FeaturedPlaceCard.jsx";
 import HowItAdapts from "../components/landing/HowItAdapts.jsx";
 import { CloudShape, PlaneIcon } from "../components/icons/TravelIcons.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import promenadeBeachImg from "../assets/places/promenade_beach.jpg";
+import frenchQuarterImg from "../assets/places/french_quarter.jpg";
+
+// Hand-picked real catalog entries for the homepage's "featured places"
+// teaser -- not the full catalog, just enough to show real photos before
+// the user even picks a city. Swap/extend this list as more places get
+// real, properly-licensed photos (see PROJECT_OVERVIEW.md).
+const FEATURED_PLACES = [
+  {
+    id: "promenade_beach",
+    kind: "place",
+    name: "Promenade (Rock) Beach",
+    description: "1.2 km seafront promenade, closed to vehicles in the evening -- exactly when it's worth walking.",
+    rating: 4.6,
+    tags: ["beach", "walk"],
+    image: promenadeBeachImg,
+  },
+  {
+    id: "french_quarter",
+    kind: "place",
+    name: "French Quarter (White Town)",
+    description: "Mustard-yellow colonial streets -- Rue Dumas, Rue Suffren, Rue Romain Rolland. Best light before 9am.",
+    rating: 4.7,
+    tags: ["heritage", "walk"],
+    image: frenchQuarterImg,
+  },
+];
 
 const HERO_VARIANTS = [
   {
@@ -317,6 +345,23 @@ export default function Landing() {
       </header>
 
       <main className="landing">
+        <h2 className="landing__section-title reveal" style={{ "--reveal-delay": "0ms" }}>
+          Featured in Pondicherry
+        </h2>
+        <section className="landing__featured-places">
+          {FEATURED_PLACES.map((place) => (
+            <FeaturedPlaceCard
+              key={place.id}
+              image={place.image}
+              name={place.name}
+              description={place.description}
+              rating={place.rating}
+              tags={place.tags}
+              onSelect={() => navigate(`/place/pondicherry/${place.kind}/${place.id}`)}
+            />
+          ))}
+        </section>
+
         <h2 className="landing__section-title reveal" style={{ "--reveal-delay": "0ms" }}>
           Where to?
         </h2>

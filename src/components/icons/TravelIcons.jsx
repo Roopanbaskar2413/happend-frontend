@@ -113,3 +113,11 @@ export function PlaneIcon(props) {
     </svg>
   );
 }
+
+export function StarIcon(props) {
+  return (
+    <svg viewBox="0 0 48 48" fill="currentColor" stroke="none" {...props}>
+      <path d="M24 6l5.3 11.2 12.3 1.6-9 8.5 2.4 12.1L24 33.4l-10.9 5.9 2.3-12.1-9-8.5 12.3-1.6z" />
+    </svg>
+  );
+}
