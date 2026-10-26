@@ -6,12 +6,20 @@ import { useAuth } from "../context/AuthContext.jsx";
 import promenadeBeachImg from "../assets/places/promenade_beach.jpg";
 import frenchQuarterImg from "../assets/places/french_quarter.jpg";
 import pondicherryGateImg from "../assets/places/pondicherry_gate.jpg";
+import keralaSadyaImg from "../assets/places/kerala_sadya.jpg";
+import keralaBackwatersImg from "../assets/places/kerala_backwaters.jpg";
+import keralaVarkalaImg from "../assets/places/kerala_varkala.jpg";
+import ootyQueenOfHillsImg from "../assets/places/ooty_queen_of_hills.jpg";
+import ootyNilgirisImg from "../assets/places/ooty_nilgiris.jpg";
+import ootyTeaRoadImg from "../assets/places/ooty_tea_road.jpg";
 
-// Real photos for Pondicherry's carousel -- the only city with real photos
-// so far. Ooty/Kerala fall back to a placeholder gradient (see
-// CityCarouselCard) until real, properly-licensed photos exist for them.
+// Real photos per city. All three now have a carousel; Ooty/Kerala are
+// still marked coming_soon in cities.json (no data/<id>/ folder yet), so
+// their cards show real photos but stay disabled for planning.
 const CITY_IMAGES = {
-  pondicherry: [promenadeBeachImg, frenchQuarterImg, pondicherryGateImg],
+  pondicherry: [pondicherryGateImg, promenadeBeachImg, frenchQuarterImg],
+  kerala: [keralaBackwatersImg, keralaSadyaImg, keralaVarkalaImg],
+  ooty: [ootyQueenOfHillsImg, ootyNilgirisImg, ootyTeaRoadImg],
 };
 
 const CITY_TAGS = {
@@ -28,6 +36,34 @@ const CITY_TINTS = {
 };
 
 const USED_APP_KEY = "happend:usedApp";
+const THEME_KEY = "happend:landingTheme";
+
+// Manual toggle only, landing page only -- see dark-mode CSS scoped under
+// .page--simple[data-theme="dark"] in index.css. Does not follow the OS
+// prefers-color-scheme setting; the user picks, and it's remembered.
+function useLandingTheme() {
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
+
+  function toggleTheme() {
+    setTheme((t) => {
+      const next = t === "dark" ? "light" : "dark";
+      try {
+        localStorage.setItem(THEME_KEY, next);
+      } catch {
+        // Nothing to do -- worst case the choice doesn't persist across visits.
+      }
+      return next;
+    });
+  }
+
+  return [theme, toggleTheme];
+}
 
 // No accounts yet, so "new vs. returning" is tracked per-browser, not per-person.
 // Set only once they actually use the planner, not just for loading the landing page.
@@ -61,6 +97,7 @@ export default function Landing() {
   // start can take 30-60s) -- a fast load never shows this at all.
   const [showColdStartHint, setShowColdStartHint] = useState(false);
   const [, markUsed] = useHasUsedApp();
+  const [theme, toggleTheme] = useLandingTheme();
 
   useEffect(() => {
     getCities()
@@ -81,16 +118,23 @@ export default function Landing() {
   }
 
   return (
-    <div className="page page--simple">
+    <div className="page page--simple" data-theme={theme}>
       <nav className="nav nav--light">
         <span className="nav__logo">
           <span className="nav__logo-hap">HAPP</span>
           <span className="nav__logo-end">END</span>
         </span>
         <div className="nav__auth">
-          <Link to="/plan" className="nav__cta">
-            Plan your trip →
-          </Link>
+          <button
+            type="button"
+            className="theme-switch"
+            role="switch"
+            aria-checked={theme === "dark"}
+            aria-label="Toggle dark mode"
+            onClick={toggleTheme}
+          >
+            <span className="theme-switch__knob" />
+          </button>
           {user ? (
             <>
               <Link to="/trips">My trips</Link>

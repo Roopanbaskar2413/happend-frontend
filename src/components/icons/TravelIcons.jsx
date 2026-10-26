@@ -121,3 +121,53 @@ export function StarIcon(props) {
     </svg>
   );
 }
+
+// Travel-mode icons for the connector between itinerary stops -- one per
+// entry in TRANSPORT_MODES (Itinerary.jsx), shown once a mode is picked.
+export function FootprintsIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <ellipse cx="16" cy="31" rx="5.5" ry="8.5" />
+      <circle cx="12" cy="19" r="1.5" />
+      <circle cx="16" cy="17" r="1.5" />
+      <circle cx="20" cy="18" r="1.5" />
+      <ellipse cx="32" cy="18" rx="5.5" ry="8.5" />
+      <circle cx="28" cy="30" r="1.5" />
+      <circle cx="32" cy="32" r="1.5" />
+      <circle cx="36" cy="31" r="1.5" />
+    </svg>
+  );
+}
+
+export function CycleIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="34" r="7" />
+      <circle cx="36" cy="34" r="7" />
+      <path d="M12 34 L22 16 L30 34 M22 16 L28 16 M12 34 L30 34" />
+      <circle cx="28" cy="12" r="2" />
+    </svg>
+  );
+}
+
+export function AutoIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M8 32v-9c0-5 4-9 9-9h8c6 0 10 4 10 10v8" />
+      <path d="M6 32h38" />
+      <circle cx="15" cy="36" r="3.4" />
+      <circle cx="31" cy="36" r="3.4" />
+      <path d="M35 24h6v7h-6" />
+    </svg>
+  );
+}
+
+export function MotorbikeIcon(props) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="10" cy="34" r="6" />
+      <circle cx="38" cy="34" r="6" />
+      <path d="M10 34l8-10h8l4 10M18 24l4-8h8" />
+    </svg>
+  );
+}

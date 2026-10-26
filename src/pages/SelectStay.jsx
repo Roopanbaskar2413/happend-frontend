@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getStays, logStaySelection } from "../api/stays.js";
 import { createPlan } from "../api/plan.js";
+import { StarIcon } from "../components/icons/TravelIcons.jsx";
 
 const BAND_LABELS = { low: "Low", mid: "Mid", high: "High" };
 
@@ -123,16 +124,28 @@ export default function SelectStay() {
                   key={stay.id}
                   className={`summary-card stay-card${selectedStayId === stay.id ? " is-selected" : ""}`}
                 >
-                  <div className="summary-card__title-row">
-                    <strong>{stay.name}</strong>
-                    <span>₹{stay.price_per_night}/night</span>
+                  <span className="stay-card__badge">{BAND_LABELS[stay.price_band]} price</span>
+
+                  <div className="stay-card__price-row">
+                    <span className="stay-card__price">
+                      ₹{stay.price_per_night}
+                      <span className="stay-card__price-unit">/night</span>
+                    </span>
+                    <span className="stay-card__rating">
+                      <StarIcon className="stay-card__rating-icon" />
+                      {stay.rating}
+                    </span>
                   </div>
-                  <p className="summary-card__meta">
-                    {stay.area} · ★ {stay.rating}
-                    {form.group_type && stay.group_fit.includes(form.group_type)
-                      ? ` · good for ${form.group_type}`
-                      : ""}
-                  </p>
+
+                  <h3 className="stay-card__name">{stay.name}</h3>
+
+                  <div className="stay-card__stats">
+                    <span>{stay.area}</span>
+                    {form.group_type && stay.group_fit.includes(form.group_type) && (
+                      <span>Good for {form.group_type}</span>
+                    )}
+                  </div>
+
                   {stay.notes && <p className="summary-card__notes">{stay.notes}</p>}
                   <div className="stay-card__actions">
                     <button

@@ -15,7 +15,8 @@ import { updateSavedPlan } from "../api/savedPlans.js";
 import { createMemory, uploadPhoto } from "../api/memories.js";
 import { chatWithGuide } from "../api/guide.js";
 import { formatTime12h, formatWindows } from "../utils/time.js";
-import { CameraIcon, CompassIcon } from "../components/icons/TravelIcons.jsx";
+import { CameraIcon, CompassIcon, FootprintsIcon, CycleIcon, AutoIcon, MotorbikeIcon } from "../components/icons/TravelIcons.jsx";
+import AIMascot from "../components/icons/AIMascot.jsx";
 
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const CONNECTOR_KINDS = new Set(["travel", "transfer"]);
@@ -177,10 +178,10 @@ const VISIT_RADIUS_METERS = 150;
 // ballpark as the auto-generated schedule instead of two different systems
 // disagreeing with each other.
 const TRANSPORT_MODES = [
-  { key: "walk", label: "Walk", speedKmh: 4.5, bufferMin: 3 },
-  { key: "cycle", label: "Cycle", speedKmh: 12, bufferMin: 4 },
-  { key: "auto", label: "Auto", speedKmh: 22, bufferMin: 8 },
-  { key: "bike", label: "Bike", speedKmh: 28, bufferMin: 6 },
+  { key: "walk", label: "Walk", speedKmh: 4.5, bufferMin: 3, Icon: FootprintsIcon },
+  { key: "cycle", label: "Cycle", speedKmh: 12, bufferMin: 4, Icon: CycleIcon },
+  { key: "auto", label: "Auto", speedKmh: 22, bufferMin: 8, Icon: AutoIcon },
+  { key: "bike", label: "Bike", speedKmh: 28, bufferMin: 6, Icon: MotorbikeIcon },
 ];
 
 function travelMinutesForMode(distanceKm, modeKey) {
@@ -814,9 +815,16 @@ function ItemCard({ item, editable, catalogEntry, weekday, onSkip, onUndo, onAdd
 }
 
 function ConnectorRow({ item, distanceKm, editable, onSelectMode, faded }) {
+  const mode = TRANSPORT_MODES.find((m) => m.key === item.travelMode);
   return (
     <div className={`itin-connector${faded ? " itin-connector--faded" : ""}`}>
-      <span className="itin-connector__line" />
+      {mode ? (
+        <span className={`itin-connector__mode-icon itin-connector__mode-icon--${mode.key}`}>
+          <mode.Icon />
+        </span>
+      ) : (
+        <span className="itin-connector__line" />
+      )}
       <div className="itin-connector__content">
         <span className="itin-connector__label">
           {item.title}
@@ -826,14 +834,15 @@ function ConnectorRow({ item, distanceKm, editable, onSelectMode, faded }) {
         </span>
         {editable && !faded && distanceKm != null && onSelectMode && (
           <div className="itin-connector__modes">
-            {TRANSPORT_MODES.map((mode) => (
+            {TRANSPORT_MODES.map((m) => (
               <button
-                key={mode.key}
+                key={m.key}
                 type="button"
-                className={`itin-connector__mode-chip${item.travelMode === mode.key ? " is-selected" : ""}`}
-                onClick={() => onSelectMode(item.id, mode.key)}
+                className={`itin-connector__mode-chip${item.travelMode === m.key ? " is-selected" : ""}`}
+                onClick={() => onSelectMode(item.id, m.key)}
               >
-                {mode.label}
+                <m.Icon className="itin-connector__mode-chip-icon" />
+                {m.label}
               </button>
             ))}
           </div>
@@ -1357,8 +1366,10 @@ function GuideChat({
           </span>
           AI Guide
         </span>
-        <button type="button" onClick={onClose} aria-label="Close guide">
-          ×
+        <button type="button" className="guide-chat__close" onClick={onClose} aria-label="Close guide">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+            <path d="M5 5l14 14M19 5L5 19" />
+          </svg>
         </button>
       </div>
       <div className="guide-chat__messages">
@@ -1565,8 +1576,16 @@ function GuideChat({
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
           disabled={busy}
         />
-        <button type="button" onClick={handleSend} disabled={busy || !input.trim()}>
-          Send
+        <button
+          type="button"
+          className="guide-chat__send"
+          onClick={handleSend}
+          disabled={busy || !input.trim()}
+          aria-label="Send message"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 12h15M13 6l6 6-6 6" />
+          </svg>
         </button>
       </div>
     </div>
@@ -1994,8 +2013,10 @@ export default function Itinerary() {
               type="button"
               className="itin-header__guide-btn"
               onClick={() => setGuideOpen((o) => !o)}
+              aria-label="AI Guide"
+              title="AI Guide"
             >
-              AI Guide
+              <AIMascot />
             </button>
           )}
           <button

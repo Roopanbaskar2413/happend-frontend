@@ -81,7 +81,7 @@ export default function PlannerForm() {
   }
 
   return (
-    <div className="planner-page">
+    <div className="planner-page planner-page--glass">
       <div className="planner-form-wrap">
         <h1>Plan your trip</h1>
         <p className="planner-form-sub">A few details and we'll build your day-by-day itinerary.</p>

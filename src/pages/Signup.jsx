@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { MailIcon, LockIcon } from "../components/icons/AuthIcons.jsx";
 
 export default function Signup() {
   const { signup } = useAuth();
@@ -26,25 +27,35 @@ export default function Signup() {
   }
 
   return (
-    <div className="planner-page">
-      <div className="planner-form-wrap">
+    <div className="auth-page">
+      <div className="auth-card">
+        <Link to="/" className="auth-card__logo">
+          <span className="nav__logo-hap">HAPP</span>
+          <span className="nav__logo-end">END</span>
+        </Link>
         <h1>Create an account</h1>
         <p className="planner-form-sub">Save your trips and get a reminder before you go.</p>
         {error && <p className="error">{error}</p>}
         <form className="planner-form" onSubmit={handleSubmit}>
           <label>
             Email
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <span className="auth-input-icon">
+              <MailIcon />
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </span>
           </label>
           <label>
             Password
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <span className="auth-input-icon">
+              <LockIcon />
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </span>
           </label>
           <button type="submit" className="planner-submit" disabled={submitting}>
             {submitting ? "Creating account…" : "Sign up"}
