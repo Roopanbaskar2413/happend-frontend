@@ -1270,6 +1270,7 @@ function GuideChat({
             role: "assistant",
             text: res.reply || "",
             suggestions: res.suggested_places || null,
+            stays: res.suggested_stays || null,
             makeRoomPrompt: pendingMakeRoom,
           },
         ]);
@@ -1443,6 +1444,23 @@ function GuideChat({
                             </button>
                           </div>
                         </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {m.stays && m.stays.length > 0 && (
+                <div className="guide-stays">
+                  {m.stays.map((s) => (
+                    <div key={s.id} className="guide-stay-card">
+                      <div className="guide-stay-card__name">{s.name}</div>
+                      <div className="guide-stay-card__meta">
+                        {s.area.replace(/_/g, " ")} · {s.price_band} · ₹{s.price_per_night}/night · ★ {s.rating}
+                      </div>
+                      {s.booking_url && (
+                        <a href={s.booking_url} target="_blank" rel="noreferrer" className="guide-stay-card__link">
+                          View
+                        </a>
                       )}
                     </div>
                   ))}

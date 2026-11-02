@@ -3296,6 +3296,52 @@ h1, h2, h3 {
   color: #3a2e26;
 }
 
+/* Stay suggestions from the Guide's find_stay specialist -- plain
+   read-only info cards, not chips, since "add to today's itinerary"
+   doesn't apply to a whole-trip stay the way it does to a place. */
+.guide-stays {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 8px;
+  max-width: 85%;
+}
+
+.guide-stay-card {
+  background: #fff;
+  border: 1px solid #ECE1D2;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guide-stay-card__name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #3a2e26;
+}
+
+.guide-stay-card__meta {
+  color: #7C8798;
+  font-size: 0.78rem;
+  text-transform: capitalize;
+}
+
+.guide-stay-card__link {
+  align-self: flex-start;
+  margin-top: 2px;
+  color: #B37620;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.guide-stay-card__link:hover {
+  text-decoration: underline;
+}
+
 /* Trip summary page */
 
 .summary-page {
