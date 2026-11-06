@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getAmenities, getFood, getPlaces } from "../api/places.js";
 import { formatWindows, WEEKDAY_NAMES } from "../utils/time.js";
+import { humanizeSlug } from "../utils/text.js";
 
 const GROUP_LABELS = { solo: "Solo", couple: "Couple", family: "Family", friends: "Friends" };
 const SLOT_LABELS = {
@@ -69,7 +70,19 @@ export default function PlaceDetail() {
         </button>
 
         {error && <p className="place-detail__empty">Couldn't load this place: {error}</p>}
-        {entry === undefined && !error && <p className="place-detail__empty">Loading…</p>}
+        {entry === undefined && !error && (
+          <div className="place-detail-skeleton" aria-hidden="true">
+            <div className="skeleton-block place-detail-skeleton__hero" />
+            <div className="skeleton-block place-detail-skeleton__title" />
+            <div className="place-detail-skeleton__row">
+              <div className="skeleton-block place-detail-skeleton__badge" />
+              <div className="skeleton-block place-detail-skeleton__badge" />
+            </div>
+            <div className="skeleton-block place-detail-skeleton__fact" />
+            <div className="skeleton-block place-detail-skeleton__fact" />
+            <div className="skeleton-block place-detail-skeleton__fact" />
+          </div>
+        )}
         {entry === null && !error && <p className="place-detail__empty">Place not found.</p>}
 
         {entry && (
@@ -89,13 +102,15 @@ export default function PlaceDetail() {
             </div>
 
             <div className="place-detail__badges">
-              {entry.category && <span className="place-detail__badge">{entry.category}</span>}
+              {entry.category && <span className="place-detail__badge">{humanizeSlug(entry.category)}</span>}
               {(entry.meals ?? []).map((m) => (
                 <span key={m} className="place-detail__badge">
                   {MEAL_LABELS[m] ?? m}
                 </span>
               ))}
-              {entry.price_band && <span className="place-detail__badge">{entry.price_band} budget</span>}
+              {entry.price_band && (
+                <span className="place-detail__badge">{humanizeSlug(entry.price_band)} budget</span>
+              )}
               {entry.veg_friendly && <span className="place-detail__badge">Veg-friendly</span>}
             </div>
 
@@ -135,7 +150,7 @@ export default function PlaceDetail() {
               {entry.area && (
                 <div className="place-detail__fact">
                   <span className="place-detail__fact-label">Area</span>
-                  <span>{entry.area.replaceAll("_", " ")}</span>
+                  <span>{humanizeSlug(entry.area)}</span>
                 </div>
               )}
               {entry.group_fit?.length > 0 && (
@@ -153,7 +168,7 @@ export default function PlaceDetail() {
               {entry.interests?.length > 0 && (
                 <div className="place-detail__fact">
                   <span className="place-detail__fact-label">Interests</span>
-                  <span>{entry.interests.join(", ")}</span>
+                  <span>{entry.interests.map(humanizeSlug).join(", ")}</span>
                 </div>
               )}
               {(entry.weather_dependent || entry.indoor || entry.heat_exposed) && (

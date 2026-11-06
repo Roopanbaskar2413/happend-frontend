@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getOptions } from "../api/plan.js";
+import { humanizeSlug } from "../utils/text.js";
 
 function toLocalIso(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(
@@ -108,7 +109,7 @@ export default function PlannerForm() {
               >
                 {(options?.transport_modes ?? ["bus"]).map((m) => (
                   <option key={m} value={m}>
-                    {m}
+                    {humanizeSlug(m)}
                   </option>
                 ))}
               </select>
@@ -159,7 +160,7 @@ export default function PlannerForm() {
               <select value={form.group_type} onChange={(e) => update("group_type", e.target.value)}>
                 {(options?.group_types ?? ["couple"]).map((g) => (
                   <option key={g} value={g}>
-                    {g}
+                    {humanizeSlug(g)}
                   </option>
                 ))}
               </select>
@@ -181,7 +182,7 @@ export default function PlannerForm() {
               <select value={form.budget_level} onChange={(e) => update("budget_level", e.target.value)}>
                 {(options?.budget_levels ?? ["mid"]).map((b) => (
                   <option key={b} value={b}>
-                    {b}
+                    {humanizeSlug(b)}
                   </option>
                 ))}
               </select>
@@ -191,7 +192,7 @@ export default function PlannerForm() {
               <select value={form.pace} onChange={(e) => update("pace", e.target.value)}>
                 {(options?.paces ?? ["balanced"]).map((p) => (
                   <option key={p} value={p}>
-                    {p}
+                    {humanizeSlug(p)}
                   </option>
                 ))}
               </select>
@@ -201,7 +202,7 @@ export default function PlannerForm() {
               <select value={form.diet} onChange={(e) => update("diet", e.target.value)}>
                 {(options?.diets ?? ["any"]).map((d) => (
                   <option key={d} value={d}>
-                    {d}
+                    {humanizeSlug(d)}
                   </option>
                 ))}
               </select>
@@ -227,7 +228,7 @@ export default function PlannerForm() {
                   className={`interest-chip${form.interests.includes(interest) ? " is-selected" : ""}`}
                   onClick={() => toggleInterest(interest)}
                 >
-                  {interest}
+                  {humanizeSlug(interest)}
                 </button>
               ))}
             </div>

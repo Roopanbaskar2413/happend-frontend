@@ -4,6 +4,7 @@ import { getTravelInfo } from "../api/travel.js";
 import { getStays } from "../api/stays.js";
 import { savePlan, updateSavedPlan } from "../api/savedPlans.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { humanizeSlug } from "../utils/text.js";
 
 const COST_KINDS = new Set(["place", "meal"]);
 
@@ -204,7 +205,7 @@ export default function TripSummary() {
           {selectedOptions.map((opt, i) => (
             <div key={opt.label} className="summary-card summary-card--selected">
               {i === 0 && (
-                <span className="summary-card__badge">Your pick: {planRequest.transport_mode}</span>
+                <span className="summary-card__badge">Your pick: {humanizeSlug(planRequest.transport_mode)}</span>
               )}
               <div className="summary-card__title-row">
                 <strong>{opt.label}</strong>

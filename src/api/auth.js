@@ -34,8 +34,9 @@ export function logout() {
 }
 
 export async function getMe() {
+  // The backend returns 200 + null for a logged-out visitor (not a 401) --
+  // that's the expected, common case on every page load, not an error.
   const res = await fetch(`${BASE_URL}/auth/me`, { credentials: "include" });
-  if (res.status === 401) return null;
   return handle(res);
 }
 

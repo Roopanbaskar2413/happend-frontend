@@ -159,27 +159,31 @@ export default function Landing() {
         </p>
 
         {error && <p className="error">Couldn't load destinations: {error}</p>}
-        {!error && loadingCities && (
+        {!error && loadingCities && showColdStartHint && (
           <p className="itin-empty-day">
-            {showColdStartHint
-              ? "Waking up the server — this can take up to a minute on the first visit in a while."
-              : "Loading destinations…"}
+            Waking up the server — this can take up to a minute on the first visit in a while.
           </p>
         )}
 
         <section className="landing__cities">
-          {cities.map((city) => (
-            <CityCarouselCard
-              key={city.id}
-              name={city.name}
-              blurb={city.blurb}
-              tags={CITY_TAGS[city.id]}
-              images={CITY_IMAGES[city.id]}
-              tint={CITY_TINTS[city.id] || "default"}
-              comingSoon={city.coming_soon}
-              onSelect={() => handleSelect(city)}
-            />
-          ))}
+          {loadingCities
+            ? [0, 1, 2].map((i) => (
+                <div key={i} className="city-card-skeleton" aria-hidden="true">
+                  <div className="city-card-skeleton__shimmer" />
+                </div>
+              ))
+            : cities.map((city) => (
+                <CityCarouselCard
+                  key={city.id}
+                  name={city.name}
+                  blurb={city.blurb}
+                  tags={CITY_TAGS[city.id]}
+                  images={CITY_IMAGES[city.id]}
+                  tint={CITY_TINTS[city.id] || "default"}
+                  comingSoon={city.coming_soon}
+                  onSelect={() => handleSelect(city)}
+                />
+              ))}
         </section>
       </main>
     </div>

@@ -867,6 +867,84 @@ h1, h2, h3 {
   animation-delay: 0.08s;
 }
 
+/* Loading skeletons -- shown while content is still loading (cold-start on
+   a free-tier host can take several seconds) so a page reads as "loading
+   content", not broken/blank. Shared shimmer utility + per-page shapes. */
+.skeleton-block {
+  position: relative;
+  overflow: hidden;
+  background: #E9EDF2;
+  border-radius: 10px;
+}
+
+.skeleton-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 150% 0;
+  }
+  100% {
+    background-position: -50% 0;
+  }
+}
+
+.city-card-skeleton {
+  position: relative;
+  aspect-ratio: 0.68;
+  border-radius: 36px;
+  overflow: hidden;
+  background: #E9EDF2;
+}
+
+.city-card-skeleton__shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.place-detail-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.place-detail-skeleton__hero {
+  height: 240px;
+  border-radius: 20px;
+}
+
+.place-detail-skeleton__title {
+  height: 32px;
+  width: 60%;
+  border-radius: 8px;
+}
+
+.place-detail-skeleton__row {
+  display: flex;
+  gap: 10px;
+}
+
+.place-detail-skeleton__badge {
+  height: 26px;
+  width: 90px;
+  border-radius: 999px;
+}
+
+.place-detail-skeleton__fact {
+  height: 18px;
+  width: 45%;
+  border-radius: 6px;
+}
+
 .city-card {
   position: relative;
   aspect-ratio: 0.68;

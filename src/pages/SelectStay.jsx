@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getStays, logStaySelection } from "../api/stays.js";
 import { createPlan } from "../api/plan.js";
 import { StarIcon } from "../components/icons/TravelIcons.jsx";
+import { humanizeSlug } from "../utils/text.js";
 
 const BAND_LABELS = { low: "Low", mid: "Mid", high: "High" };
 
@@ -140,9 +141,9 @@ export default function SelectStay() {
                   <h3 className="stay-card__name">{stay.name}</h3>
 
                   <div className="stay-card__stats">
-                    <span>{stay.area}</span>
+                    <span>{humanizeSlug(stay.area)}</span>
                     {form.group_type && stay.group_fit.includes(form.group_type) && (
-                      <span>Good for {form.group_type}</span>
+                      <span>Good for {humanizeSlug(form.group_type).toLowerCase()}</span>
                     )}
                   </div>
 
